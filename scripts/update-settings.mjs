@@ -14,7 +14,7 @@ const updates = {
   college_logo_text:        'BHC FINTECH',
   event_dates:              'November 12 & 13, 2026',
   event_countdown_target:   '2026-11-12T09:00:00',
-  event_venue:              'Golden Jubilee Hall',
+  event_venue:              'Golden Jubilee Building',
   contact_phone:            '9159911721 / 8682879906',
   contact_email:            'finxyora@bishopheber.edu.in',
 };

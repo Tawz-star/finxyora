@@ -28,7 +28,7 @@ export default function HomePage() {
   const settings = getSiteSettings();
 
   const eventDates = settings.event_dates || 'November 12 & 13, 2026';
-  const eventVenue = settings.event_venue || 'Golden Jubilee Hall';
+  const eventVenue = settings.event_venue || 'Golden Jubilee Building';
   const collegeName = settings.college_name || 'Bishop Heber College';
   const defaultFee = settings.default_event_fee || '50';
   const defaultFeeRule = settings.default_fee_rule || 'per_team';

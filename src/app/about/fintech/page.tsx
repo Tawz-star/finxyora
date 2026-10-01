@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default function AboutFinTechPage() {
   const settings = getSiteSettings();
-  const collegeName = settings.college_name || "St. Xavier's Autonomous College";
+  const collegeName = settings.college_name || "Bishop Heber College";
 
   return (
     <div className="py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-16">

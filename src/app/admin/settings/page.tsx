@@ -114,7 +114,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.college_name || ''}
                 onChange={(e) => handleChange('college_name', e.target.value)}
-                placeholder="e.g. St. Xavier's Autonomous College"
+                placeholder="e.g. Bishop Heber College"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>
@@ -140,7 +140,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.college_address || ''}
                 onChange={(e) => handleChange('college_address', e.target.value)}
-                placeholder="Campus Square, FinTech Block, Metro City"
+                placeholder="Bishop Heber College, Puthur, Tiruchirappalli – 620 017, Tamil Nadu"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>
@@ -163,7 +163,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.event_dates || ''}
                 onChange={(e) => handleChange('event_dates', e.target.value)}
-                placeholder="October 24 – 25, 2026"
+                placeholder="November 12 & 13, 2026"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>
@@ -176,7 +176,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.event_countdown_target || ''}
                 onChange={(e) => handleChange('event_countdown_target', e.target.value)}
-                placeholder="2026-10-24T09:00:00"
+                placeholder="2026-11-12T09:00:00"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs font-mono"
               />
             </div>
@@ -189,7 +189,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.event_venue || ''}
                 onChange={(e) => handleChange('event_venue', e.target.value)}
-                placeholder="Main Auditorium & FinTech Block"
+                placeholder="Golden Jubilee Building"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>
