@@ -1,0 +1,9 @@
+# Vercel deployment ignore file
+.playwright-mcp
+home_page
+events_page
+stalls_page
+contact_page
+scripts
+*.sqlite-shm
+*.sqlite-wal
