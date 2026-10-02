@@ -282,16 +282,16 @@ function seedInitialData(db: DatabaseSync) {
       now
     );
 
-    // 4. Star Quas
+    // 4. Best CFO (formerly Star Quas)
     insertEvent.run(
-      'star-quas',
-      'STAR QUAS',
-      'Commercial Strategy & FinTech Innovation',
-      'A multi-tier corporate challenge deciphering stellar market dynamics, cross-border M&A strategies, and decentralized commerce. Title and rules are fully customizable by organizers.',
+      'best-cfo',
+      'BEST CFO',
+      'Chief Financial Officer Strategy, Corporate Finance & Treasury',
+      'The ultimate corporate treasury and financial leadership trial. Step into the shoes of a Chief Financial Officer allocating capital, mitigating systemic risks, modeling liquidity, and presenting strategic valuations to the board.',
       JSON.stringify([
         'Teams must consist of exactly 2 participants.',
         'Round 1: Financial Detective - Uncovering balance sheet irregularities and tax arbitrage.',
-        'Round 2: FinTech Venture Pitch - Propose a scalable neo-banking or Web3 micro-lending solution.',
+        'Round 2: FinTech & Capital Strategy Pitch - Propose a scalable neo-banking or Web3 treasury solution.',
         'Judges will evaluate based on feasibility, regulatory compliance, and unit economics.'
       ]),
       2,
@@ -351,7 +351,7 @@ function seedInitialData(db: DatabaseSync) {
     );
   }
 
-  // Seed Stall Options
+  // Seed Stall Options (Total capacity pooled to 25 across all categories)
   const stallCountRow = db.prepare('SELECT COUNT(*) as count FROM stall_options').get() as { count: number };
   if (stallCountRow.count === 0) {
     const insertStall = db.prepare(`
@@ -366,7 +366,7 @@ function seedInitialData(db: DatabaseSync) {
       500,
       1,
       'Dedicated booth for student entrepreneurs with power socket access (up to 15A), table, 2 chairs, and promotional banner space.',
-      15,
+      25,
       1
     );
 
@@ -388,20 +388,20 @@ function seedInitialData(db: DatabaseSync) {
       3000,
       1,
       'Prime commercial pavilion booth with high-capacity electricity access (up to 30A), 2 tables, 4 chairs, prominent walkway frontage, and festival directory listing.',
-      12,
+      25,
       1
     );
   }
 
-  // Seed Admin User
+  // Seed Admin User (fintech student / finxyora26)
   const adminCountRow = db.prepare('SELECT COUNT(*) as count FROM admin_users').get() as { count: number };
   if (adminCountRow.count === 0) {
     const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync('Finxyora@Admin2026', salt);
+    const hash = bcrypt.hashSync('finxyora26', salt);
     db.prepare(`
       INSERT INTO admin_users (id, username, password_hash, display_name, role, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run('admin-1', 'admin', hash, 'FinTech Association Convener', 'admin', new Date().toISOString());
+    `).run('admin-fintech', 'fintech student', hash, 'FinTech Student Admin', 'admin', new Date().toISOString());
   }
 
   // Seed Site Settings
@@ -415,7 +415,7 @@ function seedInitialData(db: DatabaseSync) {
       event_dates: 'November 12 & 13, 2026',
       event_countdown_target: '2026-11-12T09:00:00',
       event_venue: 'Golden Jubilee Building',
-      contact_email: 'finxyora@bishopheber.edu.in',
+      contact_email: 'finxyora@gmail.com',
       contact_phone: '9159911721 / 8682879906',
       upi_id: 'finxyora@okaxis',
       razorpay_key_id: '',
@@ -423,7 +423,7 @@ function seedInitialData(db: DatabaseSync) {
       razorpay_mode: 'sandbox',
       default_event_fee: '50',
       default_fee_rule: 'per_team',
-      star_quas_title: 'STAR QUAS',
+      star_quas_title: 'BEST CFO',
       registration_deadline: '2026-10-23T23:59:59',
       allow_registrations: '1',
       allow_stalls: '1'
@@ -550,7 +550,12 @@ export function getAllEvents(): EventRecord[] {
 
 export function getEventBySlug(slug: string): EventRecord | null {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM events WHERE id = ?').get(slug);
+  let row = db.prepare('SELECT * FROM events WHERE id = ?').get(slug);
+  if (!row && slug === 'star-quas') {
+    row = db.prepare('SELECT * FROM events WHERE id = ?').get('best-cfo');
+  } else if (!row && slug === 'best-cfo') {
+    row = db.prepare('SELECT * FROM events WHERE id = ?').get('star-quas');
+  }
   return (row as unknown as EventRecord) || null;
 }
 
@@ -727,22 +732,24 @@ export function getAllStallOptions(): StallOptionRecord[] {
   const db = getDb();
   const options = db.prepare('SELECT * FROM stall_options ORDER BY price ASC').all() as unknown as StallOptionRecord[];
 
-  // Attach live booked and available counts
-  return options.map(opt => {
-    const bookedRow = db.prepare(`
-      SELECT COALESCE(SUM(stalls_requested), 0) as booked
-      FROM stall_bookings
-      WHERE option_id = ? AND status IN ('paid', 'approved', 'pending')
-    `).get(opt.id) as { booked: number };
+  // Total pooled capacity is 25 stalls across all categories combined for both festival days
+  const TOTAL_POOLED_CAPACITY = 25;
 
-    const booked = Number(bookedRow?.booked || 0);
-    const available = Math.max(0, opt.total_stalls - booked);
-    return {
-      ...opt,
-      booked_count: booked,
-      available_stalls: available
-    };
-  });
+  const bookedRow = db.prepare(`
+    SELECT COALESCE(SUM(stalls_requested), 0) as booked
+    FROM stall_bookings
+    WHERE status IN ('paid', 'approved', 'pending')
+  `).get() as { booked: number };
+
+  const totalBooked = Number(bookedRow?.booked || 0);
+  const totalAvailable = Math.max(0, TOTAL_POOLED_CAPACITY - totalBooked);
+
+  return options.map(opt => ({
+    ...opt,
+    total_stalls: TOTAL_POOLED_CAPACITY,
+    booked_count: totalBooked,
+    available_stalls: totalAvailable
+  }));
 }
 
 export function getStallOption(id: string): StallOptionRecord | null {
@@ -750,17 +757,21 @@ export function getStallOption(id: string): StallOptionRecord | null {
   const opt = db.prepare('SELECT * FROM stall_options WHERE id = ?').get(id) as unknown as StallOptionRecord;
   if (!opt) return null;
 
+  const TOTAL_POOLED_CAPACITY = 25;
   const bookedRow = db.prepare(`
     SELECT COALESCE(SUM(stalls_requested), 0) as booked
     FROM stall_bookings
-    WHERE option_id = ? AND status IN ('paid', 'approved', 'pending')
-  `).get(id) as { booked: number };
+    WHERE status IN ('paid', 'approved', 'pending')
+  `).get() as { booked: number };
 
-  const booked = Number(bookedRow?.booked || 0);
+  const totalBooked = Number(bookedRow?.booked || 0);
+  const totalAvailable = Math.max(0, TOTAL_POOLED_CAPACITY - totalBooked);
+
   return {
     ...opt,
-    booked_count: booked,
-    available_stalls: Math.max(0, opt.total_stalls - booked)
+    total_stalls: TOTAL_POOLED_CAPACITY,
+    booked_count: totalBooked,
+    available_stalls: totalAvailable
   };
 }
 
@@ -802,24 +813,25 @@ export function createStallBooking(data: {
     throw new Error('You must request at least 1 stall.');
   }
 
-  // Atomically check inventory and reserve inside a transaction
+  // Atomically check pooled inventory and reserve inside a transaction
   db.exec('BEGIN IMMEDIATE;');
   try {
     const opt = db.prepare('SELECT * FROM stall_options WHERE id = ?').get(data.optionId) as unknown as StallOptionRecord;
     if (!opt) throw new Error('Stall category not found');
     if (!opt.is_active) throw new Error('This stall category is currently unavailable for booking.');
 
+    const TOTAL_POOLED_CAPACITY = 25;
     const bookedRow = db.prepare(`
       SELECT COALESCE(SUM(stalls_requested), 0) as booked
       FROM stall_bookings
-      WHERE option_id = ? AND status IN ('paid', 'approved', 'pending')
-    `).get(data.optionId) as { booked: number };
+      WHERE status IN ('paid', 'approved', 'pending')
+    `).get() as { booked: number };
 
     const currentBooked = Number(bookedRow?.booked || 0);
-    const available = opt.total_stalls - currentBooked;
+    const available = Math.max(0, TOTAL_POOLED_CAPACITY - currentBooked);
 
     if (data.stallsRequested > available) {
-      throw new Error(`Inventory limit exceeded: Only ${available} stall(s) remaining for ${opt.name}. You requested ${data.stallsRequested}.`);
+      throw new Error(`Festival stall capacity reached: Only ${available} stall(s) remaining out of the 25 total festival vacancies. You requested ${data.stallsRequested}.`);
     }
 
     const totalAmount = opt.price * data.stallsRequested;
@@ -1028,6 +1040,291 @@ export function confirmPayment(data: {
 
     const updatedPayment = db.prepare('SELECT * FROM payments WHERE id = ?').get(data.paymentId) as unknown as PaymentRecord;
     return { success: true, message: 'Payment successfully verified and registration confirmed!', record: updatedPayment };
+  } catch (err) {
+    db.exec('ROLLBACK;');
+    throw err;
+  }
+}
+
+export function confirmClientSideRegistration(payload: {
+  referenceType: 'event' | 'stall';
+  paymentId: string;
+  registrationId: string;
+  expectedAmount: number;
+  utrNumber: string;
+  timestamp?: number | string;
+  eventData?: {
+    eventId: string;
+    collegeName: string;
+    collegeLocation: string;
+    teamName?: string;
+    leaderName: string;
+    leaderEmail: string;
+    leaderPhone: string;
+    participants: Array<{
+      fullName: string;
+      rollNumber: string;
+      department: string;
+      yearOfStudy: string;
+      section: string;
+    }>;
+  };
+  stallData?: {
+    optionId: string;
+    applicantType: 'student' | 'vendor';
+    entityName: string;
+    collegeName?: string;
+    departmentClass?: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    businessDetails?: string;
+    productsServices: string;
+    stallsRequested: number;
+  };
+}): {
+  success: boolean;
+  registrationId: string;
+  referenceType: 'event' | 'stall';
+  amount: number;
+  utrNumber: string;
+  ticketDetails: Record<string, unknown>;
+} {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  // Validate UTR Number format
+  const cleanUtr = String(payload.utrNumber || '').trim();
+  if (!cleanUtr || cleanUtr.length < 6) {
+    throw new Error('Invalid UPI Reference / UTR Number. Please provide your valid 12-digit transaction number.');
+  }
+
+  db.exec('BEGIN IMMEDIATE;');
+  try {
+    if (payload.referenceType === 'event') {
+      if (!payload.eventData) throw new Error('Missing event registration data');
+      const { eventId, collegeName, collegeLocation, teamName, leaderName, leaderEmail, leaderPhone, participants } = payload.eventData;
+
+      const event = getEventBySlug(eventId);
+      if (!event) throw new Error(`Event not found: ${eventId}`);
+
+      const participantCount = participants?.length || 0;
+      if (participantCount < event.min_participants || participantCount > event.max_participants) {
+        throw new Error(`Participant limit error: ${event.title} requires between ${event.min_participants} and ${event.max_participants} participant(s). Provided: ${participantCount}.`);
+      }
+
+      // Calculate and verify fee
+      let calculatedFee = event.registration_fee;
+      if (event.fee_type === 'per_participant') {
+        calculatedFee = event.registration_fee * participantCount;
+      }
+
+      if (Math.abs(calculatedFee - payload.expectedAmount) > 0.01) {
+        throw new Error(`Fee calculation mismatch: expected ₹${calculatedFee}, received ₹${payload.expectedAmount}`);
+      }
+
+      const regId = payload.registrationId || `FX-EVT-${Date.now()}`;
+      const payId = payload.paymentId || `FX-PAY-${Date.now()}-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
+
+      // Insert registration record
+      db.prepare(`
+        INSERT INTO event_registrations (
+          id, event_id, college_name, college_location, team_name,
+          leader_name, leader_email, leader_phone, participant_count,
+          total_fee, payment_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?)
+      `).run(
+        regId,
+        event.id,
+        collegeName.trim(),
+        collegeLocation.trim(),
+        teamName?.trim() || null,
+        leaderName.trim(),
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        participantCount,
+        calculatedFee,
+        now,
+        now
+      );
+
+      // Insert participants
+      const insertPart = db.prepare(`
+        INSERT INTO participants (
+          id, registration_id, full_name, roll_number, department, year_of_study, section, participant_order
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      participants.forEach((p, idx) => {
+        const partId = `PART-${regId}-${idx + 1}`;
+        insertPart.run(
+          partId,
+          regId,
+          p.fullName.trim(),
+          p.rollNumber.trim(),
+          p.department.trim(),
+          p.yearOfStudy.trim(),
+          p.section.trim(),
+          idx + 1
+        );
+      });
+
+      // Insert payment record
+      db.prepare(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+          gateway_signature, amount, currency, status, payer_email, payer_phone,
+          payment_method, idempotency_key, created_at, verified_at
+        ) VALUES (?, 'event', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'successful', ?, ?, 'UPI Direct', ?, ?, ?)
+      `).run(
+        payId,
+        regId,
+        `ORD-${regId}`,
+        cleanUtr,
+        calculatedFee,
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        payId,
+        now,
+        now
+      );
+
+      // Log audit
+      const auditId = `AUD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      db.prepare(`
+        INSERT INTO audit_logs (id, actor, action, target_type, target_id, details, created_at)
+        VALUES (?, 'CLIENT_PAYMENT_PIPELINE', 'EVENT_CONFIRMED', 'EVENT', ?, ?, ?)
+      `).run(
+        auditId,
+        regId,
+        JSON.stringify({ amount: calculatedFee, utrNumber: cleanUtr, paymentId: payId, event: event.title }),
+        now
+      );
+
+      db.exec('COMMIT;');
+
+      return {
+        success: true,
+        registrationId: regId,
+        referenceType: 'event',
+        amount: calculatedFee,
+        utrNumber: cleanUtr,
+        ticketDetails: {
+          eventName: event.title,
+          collegeName,
+          leaderName,
+          leaderEmail,
+          leaderPhone,
+          participantCount,
+          totalFee: calculatedFee
+        }
+      };
+    } else {
+      // STALL REGISTRATION
+      if (!payload.stallData) throw new Error('Missing stall booking data');
+      const { optionId, applicantType, entityName, collegeName, departmentClass, contactName, contactEmail, contactPhone, businessDetails, productsServices, stallsRequested } = payload.stallData;
+
+      const opt = db.prepare('SELECT * FROM stall_options WHERE id = ?').get(optionId) as unknown as StallOptionRecord;
+      if (!opt) throw new Error('Stall option not found');
+
+      // Check pooled capacity of 25
+      const TOTAL_POOLED_CAPACITY = 25;
+      const bookedRow = db.prepare(`
+        SELECT COALESCE(SUM(stalls_requested), 0) as booked
+        FROM stall_bookings
+        WHERE status IN ('paid', 'approved', 'pending')
+      `).get() as { booked: number };
+
+      const totalBooked = Number(bookedRow?.booked || 0);
+      const available = Math.max(0, TOTAL_POOLED_CAPACITY - totalBooked);
+
+      if (stallsRequested > available) {
+        throw new Error(`Stall capacity exceeded: Only ${available} stalls available out of the 25 total festival capacity.`);
+      }
+
+      const totalAmount = opt.price * stallsRequested;
+      if (Math.abs(totalAmount - payload.expectedAmount) > 0.01) {
+        throw new Error(`Fee mismatch: expected ₹${totalAmount}, received ₹${payload.expectedAmount}`);
+      }
+
+      const bookingId = payload.registrationId || `FX-STL-${Date.now()}`;
+      const payId = payload.paymentId || `FX-PAY-${Date.now()}-${Math.random().toString(16).substring(2, 8).toUpperCase()}`;
+
+      db.prepare(`
+        INSERT INTO stall_bookings (
+          id, option_id, stall_category, applicant_type, entity_name, college_name,
+          department_class, contact_name, contact_email, contact_phone, business_details,
+          products_services, stalls_requested, has_electricity, total_amount, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?, ?)
+      `).run(
+        bookingId,
+        opt.id,
+        opt.category,
+        applicantType,
+        entityName.trim(),
+        collegeName?.trim() || null,
+        departmentClass?.trim() || null,
+        contactName.trim(),
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        businessDetails?.trim() || null,
+        productsServices.trim(),
+        stallsRequested,
+        opt.has_electricity,
+        totalAmount,
+        now,
+        now
+      );
+
+      db.prepare(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+          gateway_signature, amount, currency, status, payer_email, payer_phone,
+          payment_method, idempotency_key, created_at, verified_at
+        ) VALUES (?, 'stall', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'successful', ?, ?, 'UPI Direct', ?, ?, ?)
+      `).run(
+        payId,
+        bookingId,
+        `ORD-${bookingId}`,
+        cleanUtr,
+        totalAmount,
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        payId,
+        now,
+        now
+      );
+
+      const auditId = `AUD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      db.prepare(`
+        INSERT INTO audit_logs (id, actor, action, target_type, target_id, details, created_at)
+        VALUES (?, 'CLIENT_PAYMENT_PIPELINE', 'STALL_CONFIRMED', 'STALL', ?, ?, ?)
+      `).run(
+        auditId,
+        bookingId,
+        JSON.stringify({ amount: totalAmount, utrNumber: cleanUtr, paymentId: payId, category: opt.name }),
+        now
+      );
+
+      db.exec('COMMIT;');
+
+      return {
+        success: true,
+        registrationId: bookingId,
+        referenceType: 'stall',
+        amount: totalAmount,
+        utrNumber: cleanUtr,
+        ticketDetails: {
+          categoryName: opt.name,
+          entityName,
+          contactName,
+          contactEmail,
+          contactPhone,
+          stallsRequested,
+          totalAmount
+        }
+      };
+    }
   } catch (err) {
     db.exec('ROLLBACK;');
     throw err;

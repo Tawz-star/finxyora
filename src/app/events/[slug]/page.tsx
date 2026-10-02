@@ -187,41 +187,36 @@ export default function SingleEventPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Submit and create registration
-  const handleFinalSubmit = async () => {
+  // State for client-side registration payload
+  const [eventPayload, setEventPayload] = useState<{
+    eventId: string;
+    collegeName: string;
+    collegeLocation: string;
+    teamName?: string;
+    leaderName: string;
+    leaderEmail: string;
+    leaderPhone: string;
+    participants: ParticipantFormState[];
+  } | null>(null);
+
+  // Submit and launch unified client payment modal
+  const handleFinalSubmit = () => {
     if (!event) return;
-    setSubmitting(true);
     setFormError(null);
 
-    try {
-      const res = await fetch('/api/registrations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventId: event.id,
-          collegeName,
-          collegeLocation,
-          teamName: event.id === 'best-manager' ? `${leaderName} (Solo)` : teamName,
-          leaderName,
-          leaderEmail,
-          leaderPhone,
-          participants
-        })
-      });
+    const payload = {
+      eventId: event.id,
+      collegeName,
+      collegeLocation,
+      teamName: event.id === 'best-manager' ? `${leaderName} (Solo)` : teamName,
+      leaderName,
+      leaderEmail,
+      leaderPhone,
+      participants
+    };
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Registration submission failed');
-
-      setPendingRegistration({
-        id: data.registrationId,
-        totalFee: data.totalFee
-      });
-      setIsPaymentModalOpen(true);
-    } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Registration error');
-    } finally {
-      setSubmitting(false);
-    }
+    setEventPayload(payload);
+    setIsPaymentModalOpen(true);
   };
 
   const getEventIcon = (id: string) => {
@@ -232,8 +227,9 @@ export default function SingleEventPage() {
         return <Briefcase className="w-8 h-8 text-indigo-400" />;
       case 'corporate-walk':
         return <Sparkles className="w-8 h-8 text-amber-400" />;
+      case 'best-cfo':
       case 'star-quas':
-        return <Shield className="w-8 h-8 text-cyan-400" />;
+        return <Trophy className="w-8 h-8 text-emerald-400" />;
       case 'b-quiz':
         return <HelpCircle className="w-8 h-8 text-emerald-400" />;
       case 'football-auction':
@@ -837,16 +833,16 @@ export default function SingleEventPage() {
       </div>
 
       {/* Payment Modal */}
-      {pendingRegistration && (
+      {eventPayload && event && (
         <PaymentModal
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
           referenceType="event"
-          referenceId={pendingRegistration.id}
-          amount={pendingRegistration.totalFee}
+          amount={calculateTotalFee()}
           itemTitle={`${event.title} Registration`}
           payerEmail={leaderEmail}
           payerPhone={leaderPhone}
+          eventData={eventPayload}
           onPaymentSuccess={(receiptUrl) => {
             setIsPaymentModalOpen(false);
             router.push(receiptUrl);

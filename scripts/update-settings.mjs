@@ -16,7 +16,7 @@ const updates = {
   event_countdown_target:   '2026-11-12T09:00:00',
   event_venue:              'Golden Jubilee Building',
   contact_phone:            '9159911721 / 8682879906',
-  contact_email:            'finxyora@bishopheber.edu.in',
+  contact_email:            'finxyora@gmail.com',
 };
 
 const stmt = db.prepare('INSERT OR REPLACE INTO site_settings (key, value) VALUES (?, ?)');

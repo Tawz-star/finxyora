@@ -16,6 +16,7 @@ export default function EventCard({ event }: EventCardProps) {
         return <Briefcase className="w-6 h-6 text-indigo-400" />;
       case 'corporate-walk':
         return <Sparkles className="w-6 h-6 text-amber-400" />;
+      case 'best-cfo':
       case 'star-quas':
         return <Shield className="w-6 h-6 text-cyan-400" />;
       case 'b-quiz':

@@ -210,7 +210,7 @@ export default function AdminEventsPage() {
             <form onSubmit={handleSave} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-300 mb-1">
-                  Display Title (e.g. STAR QUAS title can be changed here!)
+                  Display Title (e.g. BEST CFO)
                 </label>
                 <input
                   type="text"

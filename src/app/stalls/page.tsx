@@ -131,43 +131,41 @@ function StallRegistrationContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFinalSubmit = async () => {
+  // Client-side payload state for payment modal
+  const [stallPayload, setStallPayload] = useState<{
+    optionId: string;
+    applicantType: 'student' | 'vendor';
+    entityName: string;
+    collegeName?: string;
+    departmentClass?: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    businessDetails?: string;
+    productsServices: string;
+    stallsRequested: number;
+  } | null>(null);
+
+  const handleFinalSubmit = () => {
     if (!selectedOption) return;
-    setSubmitting(true);
     setFormError(null);
 
-    try {
-      const res = await fetch('/api/stalls/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          optionId: selectedOption.id,
-          applicantType,
-          entityName,
-          collegeName: applicantType === 'student' ? collegeName : undefined,
-          departmentClass: applicantType === 'student' ? departmentClass : undefined,
-          contactName,
-          contactEmail,
-          contactPhone,
-          businessDetails: applicantType === 'vendor' ? `${businessCategory} — ${businessDetails}` : undefined,
-          productsServices,
-          stallsRequested
-        })
-      });
+    const payload = {
+      optionId: selectedOption.id,
+      applicantType,
+      entityName,
+      collegeName: applicantType === 'student' ? collegeName : undefined,
+      departmentClass: applicantType === 'student' ? departmentClass : undefined,
+      contactName,
+      contactEmail,
+      contactPhone,
+      businessDetails: applicantType === 'vendor' ? `${businessCategory} — ${businessDetails}` : undefined,
+      productsServices,
+      stallsRequested
+    };
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to reserve stall');
-
-      setPendingBooking({
-        id: data.bookingId,
-        totalAmount: data.totalAmount
-      });
-      setIsPaymentModalOpen(true);
-    } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Booking error');
-    } finally {
-      setSubmitting(false);
-    }
+    setStallPayload(payload);
+    setIsPaymentModalOpen(true);
   };
 
   if (loading) {
@@ -202,6 +200,29 @@ function StallRegistrationContent() {
 
       {/* CATEGORY & OPTION SELECTION CARDS */}
       <div className="mb-14">
+        {/* TOTAL CAPACITY ALERT BANNER */}
+        <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80 border border-sky-400/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0">
+              <Store className="w-5 h-5 text-sky-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">
+                Official Festival Stall Allocation &bull; 25 Vacancies Maximum
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Total availability across all 3 categories combined is strictly capped at <strong className="text-white">25 stalls</strong> for both festival days.
+              </p>
+            </div>
+          </div>
+          <div className="px-4 py-2 rounded-xl bg-slate-950/90 border border-sky-500/30 text-center shrink-0">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total Vacancies</span>
+            <span className="text-lg font-black text-emerald-400 font-mono">
+              {options[0]?.available_stalls ?? 25} / 25 Available
+            </span>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span>Step 1: Choose Your Stall Package</span>
@@ -243,7 +264,7 @@ function StallRegistrationContent() {
                       {opt.category === 'STUDENT' ? 'Student Stall' : 'Outside Commercial'}
                     </span>
                     <span className={`text-xs font-semibold ${opt.available_stalls < 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                      {opt.available_stalls} Available
+                      {opt.available_stalls} of 25 Available
                     </span>
                   </div>
 
@@ -623,16 +644,16 @@ function StallRegistrationContent() {
       </div>
 
       {/* Payment Modal */}
-      {pendingBooking && (
+      {stallPayload && selectedOption && (
         <PaymentModal
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
           referenceType="stall"
-          referenceId={pendingBooking.id}
-          amount={pendingBooking.totalAmount}
-          itemTitle={`${selectedOption?.name} (${stallsRequested} Stall)`}
+          amount={calculateTotal()}
+          itemTitle={`${selectedOption.name} (${stallsRequested} Stall)`}
           payerEmail={contactEmail}
           payerPhone={contactPhone}
+          stallData={stallPayload}
           onPaymentSuccess={(receiptUrl) => {
             setIsPaymentModalOpen(false);
             router.push(receiptUrl);

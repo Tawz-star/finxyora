@@ -59,7 +59,7 @@ export default function EventsIndexPage() {
               Dynamic Team Limits
             </h4>
             <p>
-              Participant quotas are strictly validated both client-side and server-side. Prompt Perfect, Star Quas, and B Quiz accept 2 participants; Best Manager is strictly solo (1); Corporate Walk requires 6&ndash;8; Football Auction accepts 2&ndash;3.
+              Participant quotas are strictly validated both client-side and server-side. Prompt Perfect, Best CFO, and B Quiz accept 2 participants; Best Manager is strictly solo (1); Corporate Walk requires 6&ndash;8; Football Auction accepts 2&ndash;3.
             </p>
           </div>
 

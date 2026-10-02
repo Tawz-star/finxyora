@@ -16,14 +16,32 @@ import {
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('Event Registration Query');
   const [message, setMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, subject, message })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to dispatch query');
+      setSubmitted(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send query');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const faqs = [
@@ -85,8 +103,8 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <span className="text-slate-400 block font-medium">General Inquiries</span>
-                  <a href="mailto:finxyora@college.edu" className="text-sm font-bold text-white hover:text-sky-300 transition-colors">
-                    finxyora@college.edu
+                  <a href="mailto:finxyora@gmail.com" className="text-sm font-bold text-white hover:text-sky-300 transition-colors">
+                    finxyora@gmail.com
                   </a>
                 </div>
               </div>
@@ -110,7 +128,7 @@ export default function ContactPage() {
                 <div>
                   <span className="text-slate-400 block font-medium">Festival Venue</span>
                   <p className="text-xs text-white font-medium leading-relaxed">
-                    Golden Jubilee Hall &bull; Bishop Heber College, Tiruchirappalli
+                    Golden Jubilee Building &bull; Bishop Heber College, Tiruchirappalli
                   </p>
                 </div>
               </div>

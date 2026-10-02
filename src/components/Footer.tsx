@@ -68,9 +68,9 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/events/star-quas" className="hover:text-sky-300 transition-colors flex items-center gap-1">
+                <Link href="/events/best-cfo" className="hover:text-sky-300 transition-colors flex items-center gap-1">
                   <ArrowRight className="w-3 h-3 text-sky-400" />
-                  Star Quas
+                  Best CFO (Corporate Finance)
                 </Link>
               </li>
               <li>
@@ -140,11 +140,11 @@ export default function Footer() {
               </div>
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <span>Golden Jubilee Hall, Bishop Heber College</span>
+                <span>Golden Jubilee Building, Bishop Heber College</span>
               </div>
               <div className="flex items-start gap-2">
                 <Mail className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <span>finxyora@bishopheber.edu.in</span>
+                <span>finxyora@gmail.com</span>
               </div>
               <div className="flex items-start gap-2">
                 <Phone className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />

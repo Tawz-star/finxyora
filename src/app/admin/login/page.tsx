@@ -6,8 +6,8 @@ import { Shield, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Zap } from '
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('Finxyora@Admin2026');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +73,7 @@ export default function AdminLoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Username"
+                placeholder="Enter admin username"
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
               />
               <User className="w-4 h-4 text-sky-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -90,19 +90,10 @@ export default function AdminLoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
+                placeholder="Enter password"
                 className="w-full pl-10 pr-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
               />
               <Lock className="w-4 h-4 text-sky-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            </div>
-          </div>
-
-          {/* Pre-populated credentials hint box for convenience */}
-          <div className="p-3.5 rounded-xl bg-blue-950/40 border border-sky-500/20 text-[11px] text-slate-300 space-y-1">
-            <span className="text-sky-300 font-bold block">Evaluation Credentials:</span>
-            <div className="flex items-center justify-between text-slate-400 font-mono">
-              <span>Username: <strong className="text-white">admin</strong></span>
-              <span>Password: <strong className="text-white">Finxyora@Admin2026</strong></span>
             </div>
           </div>
 

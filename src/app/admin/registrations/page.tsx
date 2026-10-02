@@ -96,7 +96,8 @@ export default function AdminRegistrationsPage() {
             <option value="prompt-perfect">Prompt Perfect</option>
             <option value="best-manager">Best Manager</option>
             <option value="corporate-walk">Corporate Walk</option>
-            <option value="star-quas">Star Quas</option>
+            <option value="best-cfo">Best CFO</option>
+            <option value="star-quas">Star Quas (Alias)</option>
             <option value="b-quiz">B Quiz</option>
             <option value="football-auction">Football Auction</option>
           </select>
