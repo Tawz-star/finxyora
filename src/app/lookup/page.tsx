@@ -359,7 +359,7 @@ export default function LookupPage() {
           isOpen={!!pendingItem}
           onClose={() => setPendingItem(null)}
           referenceType={pendingItem.referenceType}
-          referenceId={pendingItem.referenceId}
+          initialReferenceId={pendingItem.referenceId}
           amount={pendingItem.amount}
           itemTitle={pendingItem.title}
           payerEmail={pendingItem.email}

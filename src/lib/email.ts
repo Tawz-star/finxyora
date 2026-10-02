@@ -56,7 +56,6 @@ export async function sendEmailNotification(
 
   if (smtpUser && smtpPass) {
     try {
-      // Lazy load nodemailer if available
       const nodemailer = await import('nodemailer');
       const transporter = nodemailer.createTransport({
         service: 'gmail',
