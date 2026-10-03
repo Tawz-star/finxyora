@@ -141,13 +141,10 @@ export default function SingleEventPage() {
     });
   };
 
-  // Calculate Fee
+  // Dynamic Participant-Based Payment Calculation: Total Amount = Number of Participants × ₹50
   const calculateTotalFee = (): number => {
-    if (!event) return 50;
-    if (event.fee_type === 'per_participant') {
-      return event.registration_fee * selectedCount;
-    }
-    return event.registration_fee;
+    const feePerHead = event?.registration_fee || 50;
+    return feePerHead * selectedCount;
   };
 
   // Step 1 Validation
@@ -331,7 +328,7 @@ export default function SingleEventPage() {
 
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                 <CreditCard className="w-3.5 h-3.5" />
-                Registration Fee: ₹{event.registration_fee} {event.fee_type === 'per_participant' ? '/ participant' : '/ team'}
+                Registration Fee: ₹{event.registration_fee || 50} per person
               </span>
 
               {event.is_open ? (
@@ -349,29 +346,29 @@ export default function SingleEventPage() {
           </div>
 
           {/* Quick Summary Card */}
-          <div className="lg:w-80 rounded-2xl bg-slate-900/80 border border-sky-500/20 p-6 space-y-4 shrink-0">
+          <div className="lg:w-80 rounded-2xl bg-slate-900/80 border border-sky-500/20 p-6 space-y-4 shrink-0 shadow-lg">
             <h4 className="text-xs uppercase font-bold text-slate-400 tracking-wider">
-              Registration Summary
+              Registration Fee Summary
             </h4>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-slate-300">
-                <span>Entry Pricing Model:</span>
-                <span className="text-white font-semibold">{event.fee_type === 'per_participant' ? 'Per Participant' : 'Fixed Per Team'}</span>
+                <span>Fee per Participant:</span>
+                <span className="text-white font-semibold font-mono">₹{event.registration_fee || 50} / person</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Calculated Total:</span>
-                <span className="text-sky-300 font-bold font-mono text-sm">₹{calculateTotalFee()}</span>
+                <span>Active Participants:</span>
+                <span className="text-white font-semibold">{selectedCount} Member{selectedCount > 1 ? 's' : ''}</span>
               </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Pass Allocation:</span>
-                <span className="text-white font-semibold">{selectedCount} Member Pass{selectedCount > 1 ? 'es' : ''}</span>
+              <div className="flex justify-between text-slate-300 pt-2 border-t border-slate-800">
+                <span className="font-semibold text-slate-200">Total Registration Fee:</span>
+                <span className="text-emerald-400 font-black font-mono text-base">₹{calculateTotalFee()}</span>
               </div>
             </div>
             <a
               href="#registration-form"
               className="w-full py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-sky-500/30"
             >
-              Jump to Form <ArrowRight className="w-3.5 h-3.5" />
+              Fill Registration Form <ArrowRight className="w-3.5 h-3.5" />
             </a>
           </div>
         </div>
@@ -548,50 +545,72 @@ export default function SingleEventPage() {
                   </div>
                 </div>
 
-                {/* Section B: Dynamic Participant Count Selector (for Corporate Walk 6-8 or Football Auction 2-3) */}
-                {(isCorporateWalk || isFootballAuction) && (
-                  <div className="p-4 rounded-2xl bg-blue-950/40 border border-sky-500/30 space-y-3">
-                    <label className="block text-xs font-bold text-sky-300">
-                      Select Team Size for {event.title} <span className="text-rose-400">*</span>
-                    </label>
+                {/* Section B: Dynamic Participant Count Selector */}
+                {event.min_participants !== event.max_participants ? (
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-950/50 via-slate-900 to-blue-950/40 border border-sky-500/30 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <label className="block text-xs font-bold text-sky-300 uppercase tracking-wider">
+                        Select Participant Count ({event.min_participants} to {event.max_participants} Members) <span className="text-rose-400">*</span>
+                      </label>
+                      <span className="text-xs font-extrabold font-mono text-emerald-400">
+                        {selectedCount} participant{selectedCount > 1 ? 's' : ''} × ₹50 = ₹{calculateTotalFee()}
+                      </span>
+                    </div>
+
                     <p className="text-[11px] text-slate-400">
                       {isCorporateWalk
-                        ? 'Corporate Walk requires a strictly enforced team size of minimum 6 and maximum 8 members.'
-                        : 'Football Auction allows 2 or 3 managers per franchise squad.'}
+                        ? 'Corporate Walk requires a strictly enforced team size of minimum 6 and maximum 8 members (₹50/person).'
+                        : isFootballAuction
+                        ? 'Football Auction allows 2 or 3 managers per franchise squad (₹50/person).'
+                        : `Select between ${event.min_participants} and ${event.max_participants} members. The registration fee is ₹50 per participant.`}
                     </p>
-                    <div className="flex items-center gap-3">
-                      {isCorporateWalk ? (
-                        [6, 7, 8].map((count) => (
+
+                    <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                      {Array.from(
+                        { length: event.max_participants - event.min_participants + 1 },
+                        (_, idx) => event.min_participants + idx
+                      ).map((count) => {
+                        const isSelected = selectedCount === count;
+                        const subTotal = count * (event.registration_fee || 50);
+                        return (
                           <button
                             key={count}
                             type="button"
                             onClick={() => handleCountChange(count)}
-                            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                              selectedCount === count
-                                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
-                                : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-sky-500/50'
+                            className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-500/30 scale-[1.02]'
+                                : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-sky-500/50 hover:bg-slate-800'
                             }`}
                           >
-                            {count} Members
+                            <span>{count} Members</span>
+                            <span
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded font-extrabold ${
+                                isSelected ? 'bg-black/35 text-white' : 'bg-slate-800 text-emerald-400'
+                              }`}
+                            >
+                              ₹{subTotal}
+                            </span>
                           </button>
-                        ))
-                      ) : (
-                        [2, 3].map((count) => (
-                          <button
-                            key={count}
-                            type="button"
-                            onClick={() => handleCountChange(count)}
-                            className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                              selectedCount === count
-                                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
-                                : 'bg-slate-900 text-slate-300 border border-slate-700 hover:border-sky-500/50'
-                            }`}
-                          >
-                            {count} Members
-                          </button>
-                        ))
-                      )}
+                        );
+                      })}
                     </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-900/80 border border-sky-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-white block">
+                        {event.min_participants === 1
+                          ? 'Solo Participation (1 Candidate)'
+                          : `Team Event (Strictly ${event.min_participants} Participants)`}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Fee rule: ₹{event.registration_fee || 50} per person &bull; Total: {event.min_participants} × ₹{event.registration_fee || 50} = ₹{event.min_participants * (event.registration_fee || 50)}
+                      </span>
+                    </div>
+                    <span className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl text-xs font-black font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/30">
+                      ₹{event.min_participants * (event.registration_fee || 50)} Total
+                    </span>
                   </div>
                 )}
 
@@ -703,13 +722,15 @@ export default function SingleEventPage() {
                 {/* Submit to Review */}
                 <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
                   <div>
-                    <span className="text-[11px] text-slate-400 block">Total Applicable Fee</span>
-                    <span className="text-2xl font-black text-white font-mono">₹{calculateTotalFee()}</span>
+                    <span className="text-[11px] text-slate-400 block font-medium">
+                      Calculated Fee ({selectedCount} participant{selectedCount > 1 ? 's' : ''} × ₹{event.registration_fee || 50})
+                    </span>
+                    <span className="text-2xl font-black text-emerald-400 font-mono">₹{calculateTotalFee()}</span>
                   </div>
 
                   <button
                     type="submit"
-                    className="px-8 py-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                    className="px-8 py-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-lg shadow-sky-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
                   >
                     <span>Proceed to Review</span>
                     <ArrowRight className="w-4 h-4" />
@@ -778,18 +799,16 @@ export default function SingleEventPage() {
                 </div>
 
                 {/* Fee Breakdown Box */}
-                <div className="p-5 rounded-2xl bg-blue-950/40 border border-sky-500/30 flex items-center justify-between">
+                <div className="p-5 rounded-2xl bg-slate-900/90 border border-sky-500/30 flex items-center justify-between">
                   <div>
-                    <span className="text-xs text-slate-300 block font-medium">Pricing Calculation</span>
+                    <span className="text-xs text-slate-200 block font-bold">Dynamic Registration Fee</span>
                     <span className="text-xs text-slate-400">
-                      {event.fee_type === 'per_participant'
-                        ? `${participants.length} participant(s) × ₹${event.registration_fee}`
-                        : `Fixed Team Registration Fee`}
+                      {participants.length} participant{participants.length > 1 ? 's' : ''} × ₹{event.registration_fee || 50} per person
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-slate-400 block">Total Due</span>
-                    <span className="text-2xl font-black text-sky-300 font-mono">₹{calculateTotalFee()}</span>
+                    <span className="text-2xl font-black text-emerald-400 font-mono">₹{calculateTotalFee()}</span>
                   </div>
                 </div>
 

@@ -77,6 +77,7 @@ export default function PaymentModal({
   // Client-generated identifiers
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
   const [registrationId, setRegistrationId] = useState<string>('');
+  const [currentUpiUri, setCurrentUpiUri] = useState<string>('');
   const [utrNumber, setUtrNumber] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -112,6 +113,7 @@ export default function PaymentModal({
     const upiUri = `upi://pay?pa=${MERCHANT_VPA}&pn=${encodeURIComponent(
       MERCHANT_NAME
     )}&am=${amount.toFixed(2)}&cu=INR&tn=${generatedPaymentId}`;
+    setCurrentUpiUri(upiUri);
 
     // Render directly on HTML5 <canvas>
     setTimeout(() => {
@@ -237,12 +239,17 @@ export default function PaymentModal({
               {referenceType === 'event' ? 'Event Registration' : 'Festival Stall Booking'}
             </span>
             <span className="text-sm font-bold text-white line-clamp-1">{itemTitle}</span>
-            <span className="text-[11px] text-slate-400 block mt-0.5 font-mono">
+            {eventData && (
+              <span className="text-[11px] text-sky-300 block font-medium mt-0.5">
+                {eventData.participants?.length || 1} participant{eventData.participants?.length > 1 ? 's' : ''} &bull; ₹50 per person
+              </span>
+            )}
+            <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
               Reg ID: {registrationId}
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-slate-400 block font-medium uppercase tracking-wider">Total Fee</span>
+            <span className="text-[11px] text-slate-400 block font-medium uppercase tracking-wider">Total Amount</span>
             <span className="text-2xl font-black text-emerald-400 font-mono">₹{amount.toFixed(2)}</span>
           </div>
         </div>
@@ -251,8 +258,8 @@ export default function PaymentModal({
         <div className="flex flex-col items-center justify-center mb-5">
           <div className="p-3 bg-white rounded-2xl shadow-xl border-2 border-sky-400/40 relative">
             <canvas ref={canvasRef} className="rounded-lg max-w-full" />
-            <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-sky-500 text-white text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full shadow">
-              NPCI UPI Instant
+            <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-sky-500 text-white text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full shadow">
+              NPCI UPI Instant &bull; ₹{amount.toFixed(2)}
             </div>
           </div>
 
@@ -260,6 +267,17 @@ export default function PaymentModal({
             <Smartphone className="w-3.5 h-3.5 text-sky-400" />
             <span>Scan with GPay, PhonePe, Paytm, or BHIM</span>
           </div>
+
+          {/* Direct Mobile UPI Pay Button */}
+          {currentUpiUri && (
+            <a
+              href={currentUpiUri}
+              className="mt-3 sm:hidden inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40"
+            >
+              <span>Tap to Pay with UPI App</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
         </div>
 
         {/* Merchant VPA Copy Box */}

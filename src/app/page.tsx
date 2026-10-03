@@ -79,7 +79,7 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/60 border border-sky-500/20">
               <Clock className="w-4 h-4 text-sky-400" />
-              <span>Fee: ₹{defaultFee} {defaultFeeRule === 'per_participant' ? '/ participant' : '/ team'}</span>
+              <span>Fee: ₹{defaultFee || '50'} per person</span>
             </div>
           </div>
 

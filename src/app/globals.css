@@ -125,20 +125,7 @@ body {
   }
 }
 
-/* Institutional Bishop Heber College Styles */
+/* Institutional font styling */
 .font-institutional-serif {
   font-family: 'Cinzel', 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
-}
-
-.banner-maroon-gradient {
-  background: linear-gradient(180deg, #3d050a 0%, #290307 55%, #180104 100%);
-}
-
-.text-gold-institutional {
-  color: #fef08a;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.25);
-}
-
-.gold-nav-indicator {
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.8), 0 0 20px rgba(234, 179, 8, 0.4);
 }

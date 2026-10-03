@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Zap, Shield, Heart, MapPin, Mail, Phone, Calendar, ArrowRight } from 'lucide-react';
 
 export default function Footer() {
@@ -13,16 +14,33 @@ export default function Footer() {
           
           {/* Brand Col */}
           <div className="lg:col-span-2 space-y-4">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-sky-500 to-indigo-500 flex items-center justify-center p-0.5 shadow-md shadow-sky-500/30">
-                <div className="w-full h-full bg-slate-950/80 rounded-[10px] flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-sky-400" />
-                </div>
+            <div className="flex items-center gap-3.5">
+              <div className="relative h-12 w-9 shrink-0">
+                <Image
+                  src="/bhc-logo.png"
+                  alt="Bishop Heber College"
+                  fill
+                  sizes="36px"
+                  className="object-contain"
+                />
               </div>
-              <span className="text-2xl font-black tracking-wider gradient-text font-sans">
-                FINXYORA
-              </span>
-            </Link>
+              <div className="w-px h-8 bg-sky-500/25" />
+              <Link href="/" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-sky-500 to-indigo-500 flex items-center justify-center p-0.5 shadow-md shadow-sky-500/30">
+                  <div className="w-full h-full bg-slate-950/80 rounded-[10px] flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-sky-400" />
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-2xl font-black tracking-wider gradient-text font-sans">
+                    FINXYORA
+                  </span>
+                  <span className="text-[10px] tracking-widest text-sky-400/80 uppercase font-semibold">
+                    Bishop Heber College
+                  </span>
+                </div>
+              </Link>
+            </div>
             
             <p className="text-sm text-slate-300 font-medium">
               “Where Finance Meets Innovation.”
