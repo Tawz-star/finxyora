@@ -157,8 +157,8 @@ export default function SingleEventPage() {
       return;
     }
 
-    // Best Manager is solo, other events require team name
-    if (event?.id !== 'best-manager' && !teamName.trim()) {
+    // Business Plan and all other events require team name
+    if (!teamName.trim()) {
       setFormError('Please specify a Team Name.');
       return;
     }
@@ -205,7 +205,7 @@ export default function SingleEventPage() {
       eventId: event.id,
       collegeName,
       collegeLocation,
-      teamName: event.id === 'best-manager' ? `${leaderName} (Solo)` : teamName,
+      teamName: teamName,
       leaderName,
       leaderEmail,
       leaderPhone,
@@ -271,8 +271,7 @@ export default function SingleEventPage() {
     }
   })();
 
-  const isCorporateWalk = event.id === 'corporate-walk';
-  const isBestManager = event.id === 'best-manager';
+  const isStockWar = event.id === 'corporate-walk';
   const isFootballAuction = event.id === 'football-auction';
 
   return (
@@ -317,13 +316,13 @@ export default function SingleEventPage() {
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30">
                 <Users className="w-3.5 h-3.5" />
-                {isBestManager
-                  ? 'Individual Participation (1 Solo Candidate)'
-                  : isCorporateWalk
-                  ? 'Team Size: 6 to 8 Participants'
+                {isStockWar
+                  ? 'Team Size: Exactly 2 Participants'
                   : isFootballAuction
                   ? 'Team Size: 2 to 3 Participants'
-                  : `Team Size: Exactly ${event.max_participants} Participants`}
+                  : event.min_participants === event.max_participants
+                  ? `Team Size: Exactly ${event.max_participants} Participants`
+                  : `Team Size: ${event.min_participants} to ${event.max_participants} Participants`}
               </span>
 
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
@@ -484,26 +483,24 @@ export default function SingleEventPage() {
                     </div>
                   </div>
 
-                  {!isBestManager && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Team Name <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={teamName}
-                        onChange={(e) => setTeamName(e.target.value)}
-                        placeholder="e.g. Alpha FinTech Squad"
-                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Team Name <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="e.g. Alpha FinTech Squad"
+                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        {isBestManager ? 'Candidate Name' : 'Team Leader Name'} <span className="text-rose-400">*</span>
+                        Team Leader Name <span className="text-rose-400">*</span>
                       </label>
                       <input
                         type="text"
@@ -558,8 +555,8 @@ export default function SingleEventPage() {
                     </div>
 
                     <p className="text-[11px] text-slate-400">
-                      {isCorporateWalk
-                        ? 'Corporate Walk requires a strictly enforced team size of minimum 6 and maximum 8 members (₹50/person).'
+                       {isStockWar
+                        ? 'Stock War requires exactly 2 members per team (₹50/person).'
                         : isFootballAuction
                         ? 'Football Auction allows 2 or 3 managers per franchise squad (₹50/person).'
                         : `Select between ${event.min_participants} and ${event.max_participants} members. The registration fee is ₹50 per participant.`}
@@ -634,7 +631,7 @@ export default function SingleEventPage() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-sky-300 uppercase tracking-wider">
-                            Participant #{index + 1} {index === 0 && !isBestManager && '(Team Leader)'}
+                            Participant #{index + 1} {index === 0 && '(Team Leader)'}
                           </span>
                         </div>
 
@@ -764,12 +761,10 @@ export default function SingleEventPage() {
                       <span className="text-slate-400 block">College:</span>
                       <span className="text-white font-semibold">{collegeName} ({collegeLocation})</span>
                     </div>
-                    {!isBestManager && (
-                      <div>
-                        <span className="text-slate-400 block">Team Name:</span>
-                        <span className="text-white font-semibold">{teamName}</span>
-                      </div>
-                    )}
+                    <div>
+                      <span className="text-slate-400 block">Team Name:</span>
+                      <span className="text-white font-semibold">{teamName}</span>
+                    </div>
                     <div>
                       <span className="text-slate-400 block">Primary Contact:</span>
                       <span className="text-white font-semibold">{leaderName} ({leaderPhone})</span>

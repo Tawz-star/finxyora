@@ -199,6 +199,51 @@ function initSchema(db: DatabaseSync) {
   `);
 
   seedInitialData(db);
+  migrateEventNames(db);
+}
+
+function migrateEventNames(db: DatabaseSync) {
+  // Migration: rename BEST MANAGER → BUSINESS PLAN and CORPORATE WALK → STOCK WAR
+  // This runs on every cold start but is idempotent (only updates if old names exist)
+  const now = new Date().toISOString();
+  const businessPlanRules = JSON.stringify([
+    'Teams must consist of exactly 2 participants.',
+    'Round 1: Written Business Plan Submission — Executive summary, market analysis, revenue model, and financial forecasts.',
+    'Round 2: Live Investor Pitch — 7-minute presentation followed by a rigorous 5-minute Q&A with the judging panel.',
+    'Evaluation criteria: Innovation, feasibility, market potential, financial viability, and presentation quality.',
+    'Business formal attire is mandatory. All presentation materials must be submitted to the organizers 30 minutes before the session.'
+  ]);
+  const stockWarRules = JSON.stringify([
+    'Teams must consist of exactly 2 participants.',
+    'Round 1: Market Analysis — Interpret financial data, identify trends, and predict stock movements within a time limit.',
+    'Round 2: Live Trading Simulation — Manage a virtual portfolio of ₹1,00,000 across multiple asset classes under volatile market conditions.',
+    'Round 3: Strategy Presentation — Justify your trades and present your portfolio performance to the judging panel.',
+    'Judges will evaluate based on return on investment (ROI), risk management, decision rationale, and analytical depth.'
+  ]);
+
+  db.prepare(`
+    UPDATE events SET
+      title = 'BUSINESS PLAN',
+      category = 'Entrepreneurship, Strategy & Business Modelling',
+      description = 'Craft a compelling, investor-ready business plan that solves a real-world problem. Pitch your venture to a panel of seasoned entrepreneurs, investors, and industry experts who will scrutinize every element — from market research to financial projections.',
+      rules = ?,
+      min_participants = 2,
+      max_participants = 2,
+      updated_at = ?
+    WHERE id = 'best-manager' AND title != 'BUSINESS PLAN'
+  `).run(businessPlanRules, now);
+
+  db.prepare(`
+    UPDATE events SET
+      title = 'STOCK WAR',
+      category = 'Stock Market Simulation, Trading Strategy & Financial Analysis',
+      description = 'Enter the trading floor and battle it out in a high-stakes virtual stock market simulation. Teams will analyze live market scenarios, execute timed trades, and manage a dynamic portfolio under real-world constraints — with leaderboards shifting every round.',
+      rules = ?,
+      min_participants = 2,
+      max_participants = 2,
+      updated_at = ?
+    WHERE id = 'corporate-walk' AND title != 'STOCK WAR'
+  `).run(stockWarRules, now);
 }
 
 function seedInitialData(db: DatabaseSync) {
@@ -236,21 +281,21 @@ function seedInitialData(db: DatabaseSync) {
       now
     );
 
-    // 2. Best Manager
+    // 2. Business Plan
     insertEvent.run(
       'best-manager',
-      'BEST MANAGER',
-      'Management, Leadership & Decision-Making',
-      'The quintessential leadership crucible. Step into the shoes of a corporate executive navigating market volatility, liquidity crunches, board revolts, and hostile takeovers.',
+      'BUSINESS PLAN',
+      'Entrepreneurship, Strategy & Business Modelling',
+      'Craft a compelling, investor-ready business plan that solves a real-world problem. Pitch your venture to a panel of seasoned entrepreneurs, investors, and industry experts who will scrutinize every element — from market research to financial projections.',
       JSON.stringify([
-        'Individual event only: Exactly 1 participant.',
-        'Participants must undergo stress interviews, crisis simulation, PR defense, and psychometric evaluation.',
-        'Strict formal business attire is mandatory throughout the competition.',
-        'Decision-making speed, financial acumen, emotional quotient, and ethical fortitude are heavily weighted.',
-        'Finalists will face a grand corporate tribunal in the final round.'
+        'Teams must consist of exactly 2 participants.',
+        'Round 1: Written Business Plan Submission — Executive summary, market analysis, revenue model, and financial forecasts.',
+        'Round 2: Live Investor Pitch — 7-minute presentation followed by a rigorous 5-minute Q&A with the judging panel.',
+        'Evaluation criteria: Innovation, feasibility, market potential, financial viability, and presentation quality.',
+        'Business formal attire is mandatory. All presentation materials must be submitted to the organizers 30 minutes before the session.'
       ]),
-      1,
-      1,
+      2,
+      2,
       50,
       'per_participant',
       1,
@@ -259,21 +304,21 @@ function seedInitialData(db: DatabaseSync) {
       now
     );
 
-    // 3. Corporate Walk
+    // 3. Stock War
     insertEvent.run(
       'corporate-walk',
-      'CORPORATE WALK',
-      'Corporate Presentation, Professional Appearance & Business Communication',
-      'A synthesis of boardroom poise, sartorial distinction, and thematic stage presence. Portray futuristic corporate governance, sustainable finance, and executive leadership on the grand runway.',
+      'STOCK WAR',
+      'Stock Market Simulation, Trading Strategy & Financial Analysis',
+      'Enter the trading floor and battle it out in a high-stakes virtual stock market simulation. Teams will analyze live market scenarios, execute timed trades, and manage a dynamic portfolio under real-world constraints — with leaderboards shifting every round.',
       JSON.stringify([
-        'Team size must be between 6 and 8 participants (strictly enforced).',
-        'Performance duration: 8 minutes stage time + 2 minutes judge Q&A.',
-        'Theme: Futuristic Corporate Governance & FinTech Leadership.',
-        'Audio tracks and lighting cues must be submitted to the technical desk 1 hour prior.',
-        'Vulgarity, derogatory slogans, or hazardous props will lead to instant disqualification.'
+        'Teams must consist of exactly 2 participants.',
+        'Round 1: Market Analysis — Interpret financial data, identify trends, and predict stock movements within a time limit.',
+        'Round 2: Live Trading Simulation — Manage a virtual portfolio of ₹1,00,000 across multiple asset classes under volatile market conditions.',
+        'Round 3: Strategy Presentation — Justify your trades and present your portfolio performance to the judging panel.',
+        'Judges will evaluate based on return on investment (ROI), risk management, decision rationale, and analytical depth.'
       ]),
-      6,
-      8,
+      2,
+      2,
       50,
       'per_participant',
       1,

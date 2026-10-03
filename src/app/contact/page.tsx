@@ -226,7 +226,7 @@ export default function ContactPage() {
                     <option value="Event Registration Query">Event Registration Query</option>
                     <option value="Stall Booking & Facilities">Stall Booking &amp; Facilities</option>
                     <option value="Payment Verification Issue">Payment Verification Issue</option>
-                    <option value="Corporate Walk Accommodation">Corporate Walk Accommodation</option>
+                    <option value="Stock War Accommodation">Stock War Accommodation</option>
                     <option value="Sponsorship & Partnership">Sponsorship &amp; Partnership</option>
                     <option value="Other Assistance">Other Assistance</option>
                   </select>
