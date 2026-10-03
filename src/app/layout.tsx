@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="en" className="dark scroll-smooth">
       <body className="antialiased min-h-screen flex flex-col bg-[#07152f] text-slate-100 selection:bg-sky-500 selection:text-white">
         <Navbar />
-        <main className="flex-grow pt-20">
+        <main className="flex-grow pt-24 sm:pt-28 md:pt-36">
           {children}
         </main>
         <Footer />

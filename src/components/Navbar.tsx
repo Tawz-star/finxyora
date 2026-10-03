@@ -2,20 +2,26 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Zap, Menu, X, Shield, Search, Calendar, Store, Trophy, Info } from 'lucide-react';
+import { Menu, X, Award, Shield, Store, Search } from 'lucide-react';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
-  const navLinks = [
-    { label: 'Home', href: '/' },
-    { label: 'Events', href: '/events', icon: Trophy },
-    { label: 'Book Stall', href: '/stalls', icon: Store },
-    { label: 'Verify / Lookup', href: '/lookup', icon: Search },
-    { label: 'About', href: '/about/commerce', icon: Info },
-    { label: 'Contact', href: '/contact', icon: Calendar },
+  // Primary desktop navigation links required by Bishop Heber College institutional style
+  const primaryLinks = [
+    { label: 'HOME', href: '/' },
+    { label: 'EVENTS', href: '/events' },
+    { label: 'CONTACT', href: '/contact' },
+  ];
+
+  // Additional secondary links accessible in mobile drawer and footer
+  const secondaryLinks = [
+    { label: 'BOOK STALL', href: '/stalls', icon: Store },
+    { label: 'VERIFY / LOOKUP', href: '/lookup', icon: Search },
+    { label: 'ADMIN PORTAL', href: '/admin', icon: Shield },
   ];
 
   const isActive = (href: string) => {
@@ -24,39 +30,159 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass-panel border-b border-sky-500/20 backdrop-blur-xl">
+    <header className="fixed top-0 left-0 right-0 z-50 banner-maroon-gradient border-b border-amber-500/30 shadow-2xl backdrop-blur-md">
+      {/* Soft horizontal light accent line at the very top */}
+      <div className="w-full h-[1.5px] bg-gradient-to-r from-transparent via-amber-400/50 to-transparent" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        
+        {/* ============================================================== */}
+        {/* TOP TIER: Institutional Branding Row */}
+        {/* ============================================================== */}
+        <div className="flex items-center justify-between py-2 sm:py-3 gap-2 sm:gap-4 border-b border-amber-500/20">
           
-          {/* Logo & Brand */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-sky-500 to-indigo-500 flex items-center justify-center p-0.5 shadow-lg shadow-sky-500/30 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-slate-950/80 rounded-[10px] flex items-center justify-center">
-                <Zap className="w-5 h-5 text-sky-400 group-hover:text-white transition-colors" />
-              </div>
+          {/* Left: Bishop Heber College Crest */}
+          <Link href="/" className="flex items-center gap-3 shrink-0 group" title="Bishop Heber College">
+            <div className="relative w-12 h-14 sm:w-16 sm:h-20 transition-transform group-hover:scale-105 duration-200">
+              <Image
+                src="/bishop-heber-crest.png"
+                alt="Bishop Heber College Pelican Crest - NISI DOMINUS FRUSTRA"
+                fill
+                priority
+                sizes="(max-width: 640px) 48px, 64px"
+                className="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]"
+              />
             </div>
-            <div className="flex flex-col">
-              <span className="text-2xl font-black tracking-wider gradient-text font-sans">
-                FINXYORA
+            {/* Mobile-only condensed institution title */}
+            <div className="flex flex-col sm:hidden">
+              <span className="font-institutional-serif text-sm font-bold tracking-wider text-gold-institutional uppercase">
+                BISHOP HEBER COLLEGE
               </span>
-              <span className="text-[10px] uppercase tracking-widest text-sky-400/80 font-semibold -mt-1">
-                FinTech Festival 2026
+              <span className="font-institutional-serif text-[9px] tracking-widest text-amber-300/80 uppercase">
+                (AUTONOMOUS) &bull; FINXYORA
               </span>
             </div>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex items-center gap-1 lg:gap-2">
-            {navLinks.map((link) => {
+          {/* Center: Prominent Institution Title in Bold Uppercase Serif */}
+          <div className="hidden sm:flex flex-col items-center text-center flex-grow px-2">
+            <Link href="/" className="group">
+              <h1 className="font-institutional-serif text-xl sm:text-2xl md:text-3xl font-extrabold tracking-widest text-gold-institutional uppercase group-hover:brightness-110 transition-all">
+                BISHOP HEBER COLLEGE
+              </h1>
+            </Link>
+            <div className="flex items-center justify-center gap-2 mt-0.5">
+              <span className="w-6 sm:w-10 h-[1px] bg-gradient-to-r from-transparent to-amber-400/60" />
+              <p className="font-institutional-serif text-[10px] sm:text-xs md:text-sm tracking-widest text-amber-200/90 font-medium uppercase">
+                (AUTONOMOUS) &bull; TIRUCHIRAPPALLI &bull; TAMIL NADU
+              </p>
+              <span className="w-6 sm:w-10 h-[1px] bg-gradient-to-l from-transparent to-amber-400/60" />
+            </div>
+            <p className="font-institutional-serif text-[9px] sm:text-[10px] md:text-xs tracking-wider text-amber-300/80 font-medium uppercase mt-0.5">
+              DEPARTMENT OF COMMERCE &bull; FINXYORA 2026
+            </p>
+          </div>
+
+          {/* Right: Symmetrical Department / Festival / Accreditation Emblem Badge */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Symmetrical Emblem Box */}
+            <div className="hidden sm:flex flex-col items-center justify-center px-3 py-1.5 rounded-xl border border-amber-500/40 bg-black/30 shadow-inner group hover:border-amber-400 transition-colors">
+              <div className="flex items-center gap-1.5 text-amber-300">
+                <Award className="w-4 h-4 text-amber-400" />
+                <span className="font-institutional-serif text-[11px] font-bold tracking-wider text-amber-200 uppercase">
+                  NAAC &lsquo;A++&rsquo;
+                </span>
+              </div>
+              <span className="font-institutional-serif text-[9px] text-amber-400/80 tracking-widest uppercase">
+                CGPA 3.58 / 4.0
+              </span>
+              <span className="text-[8px] font-semibold text-amber-300/60 tracking-tight uppercase">
+                NIRF TOP 50 RANKED
+              </span>
+            </div>
+
+            {/* Mobile Hamburger Menu Toggle */}
+            <div className="flex md:hidden items-center">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-2 text-amber-200 hover:text-white rounded-lg border border-amber-500/30 bg-black/25"
+                aria-label="Toggle navigation menu"
+              >
+                {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ============================================================== */}
+        {/* BOTTOM TIER: Centered Navigation Menu */}
+        {/* ============================================================== */}
+        <nav className="hidden md:flex items-center justify-center py-2 relative">
+          <div className="flex items-center gap-8 lg:gap-14">
+            {primaryLinks.map((link) => {
               const active = isActive(link.href);
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`relative py-1 font-institutional-serif text-sm tracking-widest uppercase font-semibold transition-all group ${
+                    active ? 'text-amber-200' : 'text-slate-200 hover:text-amber-200'
+                  }`}
+                >
+                  <span>{link.label}</span>
+
+                  {/* Active Warm Gold Underline Indicator */}
+                  {active && (
+                    <span className="absolute -bottom-1.5 left-0 right-0 h-[2.5px] bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 gold-nav-indicator rounded-full" />
+                  )}
+
+                  {/* Hover Warm Gold Underline (when not active) */}
+                  {!active && (
+                    <span className="absolute -bottom-1.5 left-1/2 right-1/2 h-[2px] bg-amber-400/80 group-hover:left-0 group-hover:right-0 transition-all duration-300 rounded-full" />
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Quick subtle secondary links on the right corner of bottom tier */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-4 text-xs font-institutional-serif">
+            <Link
+              href="/stalls"
+              className="text-amber-200/80 hover:text-amber-100 transition-colors tracking-wider uppercase text-[11px]"
+            >
+              Stalls
+            </Link>
+            <span className="text-amber-500/40">&bull;</span>
+            <Link
+              href="/lookup"
+              className="text-amber-200/80 hover:text-amber-100 transition-colors tracking-wider uppercase text-[11px]"
+            >
+              Lookup
+            </Link>
+          </div>
+        </nav>
+
+      </div>
+
+      {/* ============================================================== */}
+      {/* MOBILE DRAWER: Institutional Styled Drawer */}
+      {/* ============================================================== */}
+      {isOpen && (
+        <div className="md:hidden banner-maroon-gradient border-b-2 border-amber-500/40 px-4 pt-3 pb-6 space-y-2 animate-fadeIn shadow-2xl">
+          <div className="space-y-1">
+            {primaryLinks.map((link) => {
+              const active = isActive(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setIsOpen(false)}
+                  className={`block px-4 py-2.5 rounded-xl font-institutional-serif text-sm tracking-widest uppercase transition-all ${
                     active
-                      ? 'text-sky-300 bg-sky-500/10 border border-sky-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+                      ? 'text-amber-200 bg-amber-500/20 border border-amber-500/40 font-bold'
+                      : 'text-slate-200 hover:text-amber-200 hover:bg-black/30'
                   }`}
                 >
                   {link.label}
@@ -65,94 +191,21 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Action CTAs */}
-          <div className="hidden sm:flex items-center gap-3">
-            <Link
-              href="/lookup"
-              className="p-2 text-slate-400 hover:text-sky-300 hover:bg-slate-800/60 rounded-lg transition-colors border border-transparent hover:border-sky-500/30"
-              title="Lookup Registration"
-            >
-              <Search className="w-4 h-4" />
-            </Link>
-
-            <Link
-              href="/admin"
-              className="p-2 text-slate-400 hover:text-sky-300 hover:bg-slate-800/60 rounded-lg transition-colors border border-transparent hover:border-sky-500/30"
-              title="Admin Portal"
-            >
-              <Shield className="w-4 h-4" />
-            </Link>
-
-            <Link
-              href="/events"
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
-            >
-              Register Now
-            </Link>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center gap-2">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg border border-sky-500/20"
-              aria-label="Toggle navigation menu"
-            >
-              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Mobile Drawer Menu */}
-      {isOpen && (
-        <div className="md:hidden glass-panel border-b border-sky-500/30 px-4 pt-2 pb-6 space-y-2 animate-fadeIn">
-          {navLinks.map((link) => {
-            const active = isActive(link.href);
-            return (
+          <div className="pt-3 border-t border-amber-500/20 space-y-1.5">
+            {secondaryLinks.map((sec) => (
               <Link
-                key={link.href}
-                href={link.href}
+                key={sec.href}
+                href={sec.href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors ${
-                  active
-                    ? 'text-sky-300 bg-sky-500/15 border border-sky-500/30'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
-                }`}
+                className="flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-institutional-serif tracking-wider text-amber-200/80 hover:text-white hover:bg-black/20"
               >
-                {link.icon && <link.icon className="w-5 h-5 text-sky-400" />}
-                {link.label}
+                {sec.icon && <sec.icon className="w-4 h-4 text-amber-400" />}
+                {sec.label}
               </Link>
-            );
-          })}
-
-          <div className="pt-4 border-t border-slate-800 flex flex-col gap-2">
-            <Link
-              href="/events"
-              onClick={() => setIsOpen(false)}
-              className="w-full py-3 text-center rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-md shadow-sky-500/30"
-            >
-              Register for Events
-            </Link>
-            <Link
-              href="/stalls"
-              onClick={() => setIsOpen(false)}
-              className="w-full py-3 text-center rounded-xl text-sm font-semibold bg-slate-800/80 hover:bg-slate-700 text-sky-300 border border-sky-500/30"
-            >
-              Book a Festival Stall
-            </Link>
-            <Link
-              href="/admin"
-              onClick={() => setIsOpen(false)}
-              className="w-full py-2.5 text-center rounded-xl text-xs font-medium text-slate-400 hover:text-white flex items-center justify-center gap-2"
-            >
-              <Shield className="w-4 h-4 text-sky-400" />
-              FinTech Association Admin Portal
-            </Link>
+            ))}
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 }

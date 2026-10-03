@@ -393,15 +393,25 @@ function seedInitialData(db: DatabaseSync) {
     );
   }
 
-  // Seed Admin User (fintech student / finxyora26)
-  const adminCountRow = db.prepare('SELECT COUNT(*) as count FROM admin_users').get() as { count: number };
-  if (adminCountRow.count === 0) {
-    const salt = bcrypt.genSaltSync(10);
-    const hash = bcrypt.hashSync('finxyora26', salt);
+  // Seed Admin Users (admin / Finxyora@Admin2026 and fintech student / finxyora26)
+  const existingAdmins = db.prepare('SELECT username FROM admin_users').all() as Array<{ username: string }>;
+  const existingSet = new Set(existingAdmins.map(a => a.username.toLowerCase()));
+  const salt = bcrypt.genSaltSync(10);
+
+  if (!existingSet.has('admin')) {
+    const adminHash = bcrypt.hashSync('Finxyora@Admin2026', salt);
     db.prepare(`
       INSERT INTO admin_users (id, username, password_hash, display_name, role, created_at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run('admin-fintech', 'fintech student', hash, 'FinTech Student Admin', 'admin', new Date().toISOString());
+    `).run('admin-root', 'admin', adminHash, 'System Administrator', 'admin', new Date().toISOString());
+  }
+
+  if (!existingSet.has('fintech student')) {
+    const studentHash = bcrypt.hashSync('finxyora26', salt);
+    db.prepare(`
+      INSERT INTO admin_users (id, username, password_hash, display_name, role, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('admin-fintech', 'fintech student', studentHash, 'FinTech Student Admin', 'admin', new Date().toISOString());
   }
 
   // Seed Site Settings

@@ -55,15 +55,15 @@ export default function EventCard({ event }: EventCardProps) {
           </div>
         </div>
 
-        {/* Category */}
-        <p className="text-xs font-semibold uppercase tracking-wider text-sky-400/90 mb-1">
-          {event.category}
-        </p>
-
         {/* Title */}
-        <h3 className="text-xl font-bold text-white group-hover:text-sky-300 transition-colors mb-3">
+        <h3 className="text-xl font-bold text-white group-hover:text-sky-300 transition-colors mb-1.5">
           {event.title}
         </h3>
+
+        {/* Category */}
+        <p className="text-xs font-semibold uppercase tracking-wider text-sky-400/90 mb-3">
+          {event.category}
+        </p>
 
         {/* Description snippet */}
         <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed mb-6">
@@ -80,7 +80,7 @@ export default function EventCard({ event }: EventCardProps) {
           <span className="text-base font-extrabold text-white">
             ₹{event.registration_fee}
             <span className="text-xs font-normal text-slate-400 ml-1">
-              {event.fee_type === 'per_participant' ? '/ participant' : '/ team'}
+              per person
             </span>
           </span>
         </div>

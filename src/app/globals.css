@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -10,6 +11,11 @@
   --accent-electric: #38bdf8;
   --ice-blue: #eaf4ff;
   --text-muted: #94a3b8;
+  --maroon-dark: #230206;
+  --maroon-base: #3b060d;
+  --maroon-light: #520b14;
+  --gold-warm: #d4af37;
+  --gold-light: #fef08a;
 }
 
 body {
@@ -117,4 +123,22 @@ body {
     box-shadow: none !important;
     color: #000000 !important;
   }
+}
+
+/* Institutional Bishop Heber College Styles */
+.font-institutional-serif {
+  font-family: 'Cinzel', 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
+}
+
+.banner-maroon-gradient {
+  background: linear-gradient(180deg, #3d050a 0%, #290307 55%, #180104 100%);
+}
+
+.text-gold-institutional {
+  color: #fef08a;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.25);
+}
+
+.gold-nav-indicator {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.8), 0 0 20px rgba(234, 179, 8, 0.4);
 }
