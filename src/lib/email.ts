@@ -45,6 +45,7 @@ export interface EmailSendResult {
   provider?: 'resend' | 'smtp' | 'none';
   messageId?: string;
   error?: string;
+  accepted?: string[];
 }
 
 export const DESTINATION_EMAIL = 'finxyora@gmail.com';
@@ -83,9 +84,16 @@ export async function sendEmailNotification(
   subject: string,
   textBody: string,
   htmlBody: string,
-  options?: { replyTo?: string }
+  options?: {
+    to?: string | string[];
+    cc?: string | string[];
+    replyTo?: string;
+  }
 ): Promise<EmailSendResult> {
-  console.log(`[EMAIL DISPATCH] Destination: ${DESTINATION_EMAIL} | Subject: "${subject}"`);
+  const recipientTo = options?.to || DESTINATION_EMAIL;
+  const recipientCc = options?.cc;
+
+  console.log(`[EMAIL DISPATCH] To: ${JSON.stringify(recipientTo)} | CC: ${JSON.stringify(recipientCc || '')} | Subject: "${subject}"`);
 
   // =========================================================================
   // PROVIDER 1: RESEND HTTPS REST API (Port 443 — Immune to SMTP blocks)
@@ -94,6 +102,9 @@ export async function sendEmailNotification(
   if (resendApiKey) {
     try {
       const fromAddress = process.env.RESEND_FROM || 'Finxyora Portal <onboarding@resend.dev>';
+      const toList = Array.isArray(recipientTo) ? recipientTo : [recipientTo];
+      const ccList = recipientCc ? (Array.isArray(recipientCc) ? recipientCc : [recipientCc]) : undefined;
+
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -102,7 +113,8 @@ export async function sendEmailNotification(
         },
         body: JSON.stringify({
           from: fromAddress,
-          to: [DESTINATION_EMAIL],
+          to: toList,
+          cc: ccList,
           reply_to: options?.replyTo || undefined,
           subject,
           text: textBody,
@@ -120,7 +132,8 @@ export async function sendEmailNotification(
         success: true,
         configured: true,
         provider: 'resend',
-        messageId: data.id
+        messageId: data.id,
+        accepted: toList
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Unknown Resend error';
@@ -161,20 +174,22 @@ export async function sendEmailNotification(
       });
 
       const info = await transporter.sendMail({
-        from: `"FINXYORA Portal" <${smtpUser}>`,
-        to: DESTINATION_EMAIL,
+        from: `"FINXYORA 2026" <${smtpUser}>`,
+        to: recipientTo,
+        cc: recipientCc,
         replyTo: options?.replyTo || undefined,
         subject,
         text: textBody,
         html: htmlBody
       });
 
-      console.log('✅ Real email dispatched via Gmail SMTP. MessageId:', info.messageId);
+      console.log('✅ Real email dispatched via Gmail SMTP. MessageId:', info.messageId, 'Accepted:', info.accepted);
       return {
         success: true,
         configured: true,
         provider: 'smtp',
-        messageId: info.messageId
+        messageId: info.messageId,
+        accepted: Array.isArray(info.accepted) ? info.accepted.map(String) : []
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Unknown SMTP error';
@@ -193,8 +208,6 @@ export async function sendEmailNotification(
   // =========================================================================
   const warningMsg = 'No outbound email credentials configured on server (RESEND_API_KEY or GMAIL_APP_PASSWORD missing). Email was not sent.';
   console.warn(`⚠️ [EMAIL SKIPPED] ${warningMsg}`);
-  console.log(`SUBJECT: ${subject}`);
-  console.log(`BODY:\n${textBody}`);
 
   return {
     success: false,
@@ -205,137 +218,191 @@ export async function sendEmailNotification(
 }
 
 export async function sendEventRegistrationEmail(data: EventEmailPayload): Promise<EmailSendResult> {
-  const subject = `[FINXYORA Event Registration] ${data.eventName} - ₹${data.totalAmount} by ${data.leaderName}`;
+  const subject = `[FINXYORA 2026] Event Registration Confirmed — ${data.eventName} (ID: ${data.registrationId})`;
 
   const participantsList = data.participants
     .map((p, idx) => `  ${idx + 1}. ${p.fullName} (Roll: ${p.rollNumber}, Dept: ${p.department}, Year: ${p.yearOfStudy})`)
     .join('\n');
 
   const textBody = `
-NEW EVENT REGISTRATION RECEIVED
+FINXYORA 2026 — REGISTRATION CONFIRMATION
 ===========================================
-Event:              ${data.eventName}
+Dear ${data.leaderName},
+
+Your team's registration for "${data.eventName}" has been successfully logged!
+
+REGISTRATION SUMMARY:
+-------------------------------------------
 Registration ID:    ${data.registrationId}
-Total Amount Paid:  ₹${data.totalAmount.toFixed(2)}
-Payment UTR / Ref:  ${data.utrNumber}
-Team Leader:        ${data.leaderName}
-Email:              ${data.leaderEmail}
-Phone:              ${data.leaderPhone}
-College:            ${data.collegeName}
+Event Name:         ${data.eventName}
+College Name:       ${data.collegeName}
+Total Fee:          ₹${data.totalAmount.toFixed(2)}
+UPI Transaction ID: ${data.utrNumber}
 Total Participants: ${data.participantCount}
 
-Participant List:
+PARTICIPANT LIST:
 ${participantsList}
 
-Timestamp:          ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+To download your digital entry pass with verification QR code, visit:
+https://finxyora.vercel.app/confirmation/${data.registrationId}
+
+For urgent queries, contact our student leadership:
+• Tawfeeq Ahmed (Vice President): +91 91599 11721
+• Sriram (President): +91 86828 79906
+
+Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
 ===========================================
-This notification is automatically sent to ${DESTINATION_EMAIL}.
+FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 `;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 600px;">
-      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — New Event Registration</h2>
-      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8;">
-        <p><strong>Event:</strong> <span style="color: #facc15;">${data.eventName}</span></p>
+      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — Registration Confirmed</h2>
+      <p>Dear <strong>${data.leaderName}</strong>,</p>
+      <p>Your team's registration for <strong style="color: #facc15;">${data.eventName}</strong> has been logged in the festival database.</p>
+      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8; margin: 16px 0;">
         <p><strong>Registration ID:</strong> <code>${data.registrationId}</code></p>
-        <p><strong>Total Amount Paid:</strong> <span style="color: #4ade80; font-size: 18px; font-weight: bold;">₹${data.totalAmount.toFixed(2)}</span></p>
-        <p><strong>UPI Reference (UTR):</strong> <code style="background: #1e293b; padding: 4px 8px; border-radius: 4px;">${data.utrNumber}</code></p>
-        <p><strong>Leader:</strong> ${data.leaderName} &bull; ${data.collegeName}</p>
-        <p><strong>Phone / Email:</strong> ${data.leaderPhone} &bull; ${data.leaderEmail}</p>
+        <p><strong>Total Amount:</strong> <span style="color: #4ade80; font-size: 16px; font-weight: bold;">₹${data.totalAmount.toFixed(2)}</span></p>
+        <p><strong>UPI Reference (UTR):</strong> <code style="background: #1e293b; padding: 3px 6px; border-radius: 4px;">${data.utrNumber}</code></p>
+        <p><strong>College:</strong> ${data.collegeName}</p>
         <p><strong>Total Members:</strong> ${data.participantCount}</p>
       </div>
-      <h3 style="color: #38bdf8; margin-top: 20px;">Participants:</h3>
-      <ol style="background: rgba(255,255,255,0.02); padding: 16px 30px; border-radius: 8px;">
-        ${data.participants
-          .map(
-            (p) =>
-              `<li style="margin-bottom: 6px;"><strong>${p.fullName}</strong> — Roll: <code>${p.rollNumber}</code>, Dept: ${p.department}, Year: ${p.yearOfStudy}</li>`
-          )
-          .join('')}
-      </ol>
+      <p style="margin: 16px 0;">
+        <a href="https://finxyora.vercel.app/confirmation/${data.registrationId}" style="background: #0284c7; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+          View &amp; Print Digital Pass &rarr;
+        </a>
+      </p>
       <hr style="border-color: #1e293b; margin: 20px 0;" />
-      <p style="font-size: 11px; color: #94a3b8;">Sent automatically to ${DESTINATION_EMAIL}.</p>
+      <p style="font-size: 11px; color: #94a3b8;">Sent automatically by FINXYORA 2026. A copy is archived at ${DESTINATION_EMAIL}.</p>
     </div>
   `;
 
-  return sendEmailNotification(subject, textBody, htmlBody, { replyTo: data.leaderEmail });
+  // Dispatches to the team leader, with a copy to festival committee
+  return sendEmailNotification(subject, textBody, htmlBody, {
+    to: data.leaderEmail,
+    cc: DESTINATION_EMAIL,
+    replyTo: DESTINATION_EMAIL
+  });
 }
 
 export async function sendStallBookingEmail(data: StallEmailPayload): Promise<EmailSendResult> {
-  const subject = `[FINXYORA Stall Booking] ${data.categoryName} - ₹${data.totalAmount} by ${data.entityName}`;
+  const subject = `[FINXYORA 2026] Stall Booking Confirmed — ${data.categoryName} (ID: ${data.bookingId})`;
 
   const textBody = `
-NEW STALL BOOKING RECEIVED
+FINXYORA 2026 — STALL BOOKING CONFIRMATION
 ===========================================
-Category:           ${data.categoryName}
+Dear ${data.contactName},
+
+Your stall booking for "${data.categoryName}" at FINXYORA 2026 has been received!
+
+BOOKING SUMMARY:
+-------------------------------------------
 Booking ID:         ${data.bookingId}
-Total Amount Paid:  ₹${data.totalAmount.toFixed(2)}
-Payment UTR / Ref:  ${data.utrNumber}
+Category:           ${data.categoryName}
 Brand / Exhibitor:  ${data.entityName}
-Contact Person:     ${data.contactName}
-Email:              ${data.contactEmail}
-Phone:              ${data.contactPhone}
+Total Fee:          ₹${data.totalAmount.toFixed(2)}
+UPI Transaction ID: ${data.utrNumber}
 Stalls Requested:   ${data.stallsRequested}
 Products / Services:${data.productsServices}
 
-Timestamp:          ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
 ===========================================
-This notification is automatically sent to ${DESTINATION_EMAIL} for stall allocation.
+FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 `;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 600px;">
-      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — New Stall Booking</h2>
-      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8;">
-        <p><strong>Category:</strong> <span style="color: #facc15;">${data.categoryName}</span></p>
+      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — Stall Booking Confirmed</h2>
+      <p>Dear <strong>${data.contactName}</strong>,</p>
+      <p>Your stall booking for <strong style="color: #facc15;">${data.categoryName}</strong> has been logged in our central festival database.</p>
+      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8; margin: 16px 0;">
         <p><strong>Booking ID:</strong> <code>${data.bookingId}</code></p>
-        <p><strong>Total Amount Paid:</strong> <span style="color: #4ade80; font-size: 18px; font-weight: bold;">₹${data.totalAmount.toFixed(2)}</span></p>
-        <p><strong>UPI Reference (UTR):</strong> <code style="background: #1e293b; padding: 4px 8px; border-radius: 4px;">${data.utrNumber}</code></p>
         <p><strong>Exhibitor / Brand:</strong> ${data.entityName}</p>
-        <p><strong>Registered Member:</strong> ${data.contactName}</p>
-        <p><strong>Phone / Email:</strong> ${data.contactPhone} &bull; ${data.contactEmail}</p>
+        <p><strong>Total Amount:</strong> <span style="color: #4ade80; font-size: 16px; font-weight: bold;">₹${data.totalAmount.toFixed(2)}</span></p>
+        <p><strong>UPI Reference (UTR):</strong> <code style="background: #1e293b; padding: 3px 6px; border-radius: 4px;">${data.utrNumber}</code></p>
         <p><strong>Stalls Booked:</strong> ${data.stallsRequested}</p>
-        <p><strong>Products / Description:</strong> ${data.productsServices}</p>
       </div>
       <hr style="border-color: #1e293b; margin: 20px 0;" />
-      <p style="font-size: 11px; color: #94a3b8;">Sent automatically to ${DESTINATION_EMAIL} for stall coordination.</p>
+      <p style="font-size: 11px; color: #94a3b8;">Sent automatically by FINXYORA 2026. A copy is archived at ${DESTINATION_EMAIL}.</p>
     </div>
   `;
 
-  return sendEmailNotification(subject, textBody, htmlBody, { replyTo: data.contactEmail });
+  // Dispatches to exhibitor contact, with a copy to festival committee
+  return sendEmailNotification(subject, textBody, htmlBody, {
+    to: data.contactEmail,
+    cc: DESTINATION_EMAIL,
+    replyTo: DESTINATION_EMAIL
+  });
 }
 
 export async function sendQueryEmail(data: QueryEmailPayload): Promise<EmailSendResult> {
-  const subject = `[FINXYORA Help Query] ${data.subject} from ${data.name}`;
+  const subject = `[FINXYORA 2026] Inquiry Received — ${data.subject}`;
 
   const textBody = `
-NEW INQUIRY FROM FINXYORA CONTACT PORTAL
+FINXYORA 2026 — INQUIRY CONFIRMATION
 ===========================================
-From:       ${data.name} (${data.email})
-Subject:    ${data.subject}
-Message:
-${data.message}
+Dear ${data.name},
 
-Timestamp:  ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+Thank you for reaching out to the FINXYORA 2026 Organizing Committee.
+We have received your query regarding "${data.subject}".
+
+YOUR MESSAGE:
+-------------------------------------------
+${data.message}
+-------------------------------------------
+
+Our student convener desk will review your query and respond directly
+to this email (${data.email}) within 12 hours.
+
+For urgent assistance, please contact our Student Leadership Helpline:
+• Tawfeeq Ahmed (Vice President): +91 91599 11721
+• Sriram (President): +91 86828 79906
+
+Festival Venue: Golden Jubilee Building, Bishop Heber College, Tiruchirappalli
+Support Hours:  Monday to Saturday • 09:00 AM – 06:00 PM IST
+
+Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
 ===========================================
-Received at ${DESTINATION_EMAIL}. Reply directly to this email to respond to ${data.name}.
+FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 `;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 600px;">
-      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — New Contact Query</h2>
-      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8;">
-        <p><strong>Sender Name:</strong> ${data.name}</p>
-        <p><strong>Sender Email:</strong> <a href="mailto:${data.email}" style="color: #38bdf8;">${data.email}</a></p>
-        <p><strong>Subject:</strong> ${data.subject}</p>
-        <p><strong>Message:</strong></p>
-        <blockquote style="background: #1e293b; padding: 12px; border-left: 4px solid #38bdf8; color: #e2e8f0; margin: 8px 0;">
+      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — Inquiry Received</h2>
+      <p>Dear <strong>${data.name}</strong>,</p>
+      <p>Thank you for reaching out to the FINXYORA 2026 Organizing Committee. We have received your message regarding <strong>"${data.subject}"</strong>.</p>
+      
+      <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8; margin: 16px 0;">
+        <p style="margin-top: 0; color: #94a3b8; font-size: 12px;"><strong>YOUR SUBMITTED QUERY:</strong></p>
+        <blockquote style="background: #1e293b; padding: 12px; border-left: 4px solid #38bdf8; color: #e2e8f0; margin: 8px 0; font-style: normal; font-size: 13px; line-height: 1.6;">
           ${data.message.replace(/\n/g, '<br/>')}
         </blockquote>
       </div>
-      <p style="font-size: 11px; color: #94a3b8; margin-top: 20px;">Sent automatically to ${DESTINATION_EMAIL}. Click Reply to message the student directly.</p>
+
+      <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+        Our student convener desk is reviewing your message and will respond directly to your email (<code>${data.email}</code>) within 12 hours.
+      </p>
+
+      <div style="background: #1e293b; padding: 14px; border-radius: 8px; margin-top: 20px; border: 1px solid rgba(56, 189, 248, 0.2);">
+        <p style="margin: 0; font-size: 12px; font-weight: bold; color: #38bdf8;">Need Urgent Assistance? Contact Leadership Helpline:</p>
+        <p style="margin: 8px 0 0 0; font-size: 13px; color: #e2e8f0;">
+          &bull; <strong>Tawfeeq Ahmed</strong> (Vice President): <a href="tel:+919159911721" style="color: #4ade80; text-decoration: none; font-weight: bold;">+91 91599 11721</a><br/>
+          &bull; <strong>Sriram</strong> (President): <a href="tel:+918682879906" style="color: #4ade80; text-decoration: none; font-weight: bold;">+91 86828 79906</a>
+        </p>
+      </div>
+
+      <hr style="border-color: #1e293b; margin: 24px 0 16px 0;" />
+      <p style="font-size: 11px; color: #64748b; margin: 0;">
+        FINXYORA 2026 &bull; Dept. of Commerce &bull; Bishop Heber College (Autonomous) &bull; Tiruchirappalli<br/>
+        A copy of this inquiry has been automatically archived at <code>${DESTINATION_EMAIL}</code>.
+      </p>
     </div>
   `;
 
-  return sendEmailNotification(subject, textBody, htmlBody, { replyTo: data.email });
+  // Dispatches directly to the student/inquirer's email, and CCs the festival committee at finxyora@gmail.com
+  return sendEmailNotification(subject, textBody, htmlBody, {
+    to: data.email,
+    cc: DESTINATION_EMAIL,
+    replyTo: DESTINATION_EMAIL
+  });
 }
