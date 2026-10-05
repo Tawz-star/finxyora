@@ -46,6 +46,8 @@ next-env.d.ts
 # sqlite WAL files (keep main .sqlite but not temp WAL files)
 *.sqlite-shm
 *.sqlite-wal
+*.db
+finxyora.db
 
 # screenshot artifacts
 home_page

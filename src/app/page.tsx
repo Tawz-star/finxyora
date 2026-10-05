@@ -60,10 +60,12 @@ export default async function HomePage() {
             <Image
               src="/finxyora-hero-logo.png"
               alt="FINXYORA 2K26"
-              width={447}
-              height={559}
+              width={1341}
+              height={1677}
               priority
-              className="hero-logo-spring w-[280px] sm:w-[360px] md:w-[420px] lg:w-[460px] max-w-[85vw] h-auto object-contain mx-auto select-none pointer-events-none"
+              quality={95}
+              sizes="(max-width: 640px) 280px, (max-width: 768px) 360px, (max-width: 1024px) 420px, 460px"
+              className="hero-logo-spring w-[280px] sm:w-[360px] md:w-[420px] lg:w-[460px] max-w-[85vw] h-auto object-contain mx-auto select-none pointer-events-none drop-shadow-[0_10px_35px_rgba(56,189,248,0.25)]"
             />
           </div>
 
@@ -126,37 +128,23 @@ export default async function HomePage() {
       </section>
 
       {/* ============================================================== */}
-      {/* QUICK HIGHLIGHT STATS */}
+      {/* QUICK HIGHLIGHT STATS (Centered 2 Boxes: Flagship Events & Price Per Person) */}
       {/* ============================================================== */}
       <section className="py-10 border-y border-sky-500/20 bg-slate-950/60 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center">
             
-            <div className="p-4 rounded-2xl glass-card">
+            <div className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-500/40 transition-all">
               <div className="text-3xl sm:text-4xl font-black text-white font-mono">6</div>
-              <div className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1">
-                Flagship Competitions
+              <div className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1.5">
+                Flagship Events
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl glass-card">
+            <div className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-500/40 transition-all">
               <div className="text-3xl sm:text-4xl font-black text-emerald-400 font-mono">₹{defaultFee}</div>
-              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider mt-1">
-                Standard Entry Fee
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card">
-              <div className="text-3xl sm:text-4xl font-black text-sky-400 font-mono">🏆</div>
-              <div className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1">
-                Prizes for Top 3
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl glass-card">
-              <div className="text-3xl sm:text-4xl font-black text-indigo-400 font-mono">🥇🥈🥉</div>
-              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider mt-1">
-                1st · 2nd · 3rd Place
+              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider mt-1.5">
+                Price Per Person
               </div>
             </div>
 
@@ -165,82 +153,109 @@ export default async function HomePage() {
       </section>
 
       {/* ============================================================== */}
-      {/* PRIZE & AWARDS SHOWCASE SECTION */}
+      {/* PRIZE & AWARDS SHOWCASE SECTION (First & Second Prize) */}
       {/* ============================================================== */}
-      <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <div className="relative rounded-3xl glass-panel p-8 sm:p-12 border border-amber-500/30 overflow-hidden shadow-2xl">
           {/* Ambient background glow */}
           <div className="absolute -top-32 -left-32 w-80 h-80 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />
           <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-sky-500/15 rounded-full blur-[100px] pointer-events-none" />
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left: Text & Badges (7 cols) */}
-            <div className="lg:col-span-7 space-y-5">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                <span>Championship Accolades &amp; Honors</span>
-              </div>
-
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                Grand Championship <br />
-                <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
-                  Prizes &amp; Merit Awards
-                </span>
-              </h2>
-
-              <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-medium">
-                Exclusive Cash Rewards, Prestigious Trophies &amp; Merit Certificates for Top 3 Winners in Every Arena.
-              </p>
-
-              <div className="grid grid-cols-3 gap-3 pt-2">
-                <div className="p-3.5 rounded-2xl glass-card border border-amber-500/20 text-center">
-                  <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono block">🥇 1st</span>
-                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Winner Cup</span>
-                </div>
-                <div className="p-3.5 rounded-2xl glass-card border border-slate-600/30 text-center">
-                  <span className="text-xl sm:text-2xl font-black text-slate-300 font-mono block">🥈 2nd</span>
-                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Runner Up</span>
-                </div>
-                <div className="p-3.5 rounded-2xl glass-card border border-amber-700/30 text-center">
-                  <span className="text-xl sm:text-2xl font-black text-amber-600 font-mono block">🥉 3rd</span>
-                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Second Runner</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 pt-2">
-                <Link
-                  href="/events"
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-sans shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                >
-                  <Trophy className="w-4 h-4" />
-                  <span>Compete for the Trophy</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-                <span className="text-xs text-slate-400">
-                  Certificates awarded to all finalists
-                </span>
-              </div>
+          {/* Section Header */}
+          <div className="text-center max-w-2xl mx-auto mb-10 space-y-3">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              <span>Championship Accolades &amp; Honors</span>
             </div>
 
-            {/* Right: Prize Image (5 cols) */}
-            <div className="lg:col-span-5 flex justify-center">
-              <div className="group relative w-full max-w-md aspect-[16/10] sm:aspect-[16/9] rounded-2xl overflow-hidden border-2 border-amber-400/40 shadow-2xl shadow-amber-500/20 bg-slate-950">
-                <Image
-                  src="/prize-showcase.jpg"
-                  alt="FINXYORA Championship Trophy and Awards"
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 450px"
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute bottom-3 left-3 right-3 text-center">
-                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-slate-950/80 text-amber-300 border border-amber-500/30 backdrop-blur-md">
-                    FINXYORA Official Championship Trophy
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+              Grand Championship <br />
+              <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
+                Prizes &amp; Merit Awards
+              </span>
+            </h2>
+
+            <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+              Participants who win the event will receive official First Prize or Second Prize honours and merit recognition across every competition arena.
+            </p>
+          </div>
+
+          {/* Two Balanced Prize Cards: First Prize & Second Prize */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            
+            {/* FIRST PRIZE */}
+            <div className="relative p-6 sm:p-8 rounded-3xl glass-card border border-amber-400/40 bg-gradient-to-b from-amber-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-amber-500/10 hover:border-amber-400/70 transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <span className="text-3xl sm:text-4xl">🥇</span>
+                  <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                    Champion
                   </span>
                 </div>
+                <h3 className="text-2xl font-black text-white tracking-tight">
+                  FIRST PRIZE
+                </h3>
+                <p className="text-xs font-semibold text-amber-300 uppercase tracking-wider mt-1 mb-4">
+                  Winner Merit Award
+                </p>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Awarded to the top-ranking team or participant in each flagship arena, featuring official winner honours, championship merit credentials, and departmental excellence citations.
+                </p>
+              </div>
+              <div className="pt-6 mt-6 border-t border-amber-500/20 flex items-center justify-between text-xs text-amber-200/80">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  Highest Arena Distinction
+                </span>
+                <span className="font-mono font-bold text-amber-300">Rank #1</span>
               </div>
             </div>
+
+            {/* SECOND PRIZE */}
+            <div className="relative p-6 sm:p-8 rounded-3xl glass-card border border-sky-400/30 bg-gradient-to-b from-sky-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-sky-500/10 hover:border-sky-400/60 transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <span className="text-3xl sm:text-4xl">🥈</span>
+                  <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-sky-400/20 text-sky-300 border border-sky-400/40">
+                    Runner-Up
+                  </span>
+                </div>
+                <h3 className="text-2xl font-black text-white tracking-tight">
+                  SECOND PRIZE
+                </h3>
+                <p className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1 mb-4">
+                  Runner-Up Merit Award
+                </p>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Awarded to the runner-up team or participant in each flagship arena, recognizing competitive distinction, strategic execution, and official merit credentials.
+                </p>
+              </div>
+              <div className="pt-6 mt-6 border-t border-sky-500/20 flex items-center justify-between text-xs text-sky-200/80">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  Official Runner-Up Citation
+                </span>
+                <span className="font-mono font-bold text-sky-300">Rank #2</span>
+              </div>
+            </div>
+
           </div>
+
+          {/* CTA Button */}
+          <div className="text-center pt-8">
+            <Link
+              href="/events"
+              className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl text-xs font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-sans shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              <Trophy className="w-4 h-4" />
+              <span>Register to Compete</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <p className="text-[11px] text-slate-400 mt-3">
+              Merit &amp; Participation Certificates awarded to all verified participants
+            </p>
+          </div>
+
         </div>
       </section>
 

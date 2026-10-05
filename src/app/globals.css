@@ -163,6 +163,8 @@ body {
   will-change: transform, opacity;
   backface-visibility: hidden;
   transform-origin: center center;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
 }
 
 @media (prefers-reduced-motion: reduce) {

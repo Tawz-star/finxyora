@@ -1429,6 +1429,8 @@ export async function getEventRegistration(id: string): Promise<EventRegistratio
 
   return {
     ...reg,
+    total_fee: Number(reg.total_fee || 0),
+    participant_count: Number(reg.participant_count || 1),
     participants,
     event: event || undefined
   };
@@ -1653,6 +1655,8 @@ export async function getStallBooking(id: string): Promise<StallBookingRecord | 
   const opt = await queryOne<StallOptionRecord>('SELECT name FROM stall_options WHERE id = ?', [booking.option_id]);
   return {
     ...booking,
+    total_amount: Number(booking.total_amount || 0),
+    stalls_requested: Number(booking.stalls_requested || 1),
     option_name: opt?.name
   };
 }

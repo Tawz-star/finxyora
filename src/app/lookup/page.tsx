@@ -94,7 +94,16 @@ export default function LookupPage() {
       setEventResults(data.eventRegistrations || []);
       setStallResults(data.stallBookings || []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Lookup failed');
+      const msg = err instanceof Error ? err.message : '';
+      const isNetwork =
+        msg.toLowerCase().includes('network') ||
+        msg.toLowerCase().includes('failed to fetch') ||
+        msg.toLowerCase().includes('500');
+      setError(
+        isNetwork
+          ? 'Unable to retrieve registration details right now. Please try again later.'
+          : 'Registration ID not found. Please check the ID and try again.'
+      );
       setEventResults([]);
       setStallResults([]);
     } finally {
@@ -238,11 +247,11 @@ export default function LookupPage() {
                       <div className="flex items-center gap-3 self-end md:self-center shrink-0">
                         {hasPass ? (
                           <Link
-                            href={`/confirmation/${reg.id}`}
+                            href={`/lookup/${encodeURIComponent(reg.id)}`}
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 flex items-center gap-2 transition-all"
                           >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>View &amp; Print Pass</span>
+                            <span>Continue / View Details</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
                         ) : (
                           <button
@@ -251,7 +260,7 @@ export default function LookupPage() {
                               setPendingItem({
                                 referenceType: 'event',
                                 referenceId: reg.id,
-                                amount: reg.total_fee,
+                                amount: Number(reg.total_fee || 0),
                                 title: `${reg.event?.title || reg.event_id} Registration`,
                                 email: reg.leader_email,
                                 phone: reg.leader_phone
@@ -260,7 +269,7 @@ export default function LookupPage() {
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-2 transition-all"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Complete ₹{reg.total_fee} Payment</span>
+                            <span>Complete ₹{Number(reg.total_fee || 0)} Payment</span>
                           </button>
                         )}
                       </div>
@@ -332,11 +341,11 @@ export default function LookupPage() {
                       <div className="flex items-center gap-3 self-end md:self-center shrink-0">
                         {hasPass ? (
                           <Link
-                            href={`/confirmation/${stl.id}`}
+                            href={`/lookup/${encodeURIComponent(stl.id)}`}
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/20 flex items-center gap-2 transition-all"
                           >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>View &amp; Print Pass</span>
+                            <span>Continue / View Details</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
                         ) : (
                           <button
@@ -345,7 +354,7 @@ export default function LookupPage() {
                               setPendingItem({
                                 referenceType: 'stall',
                                 referenceId: stl.id,
-                                amount: stl.total_amount,
+                                amount: Number(stl.total_amount || 0),
                                 title: `Stall Reservation (${stl.entity_name})`,
                                 email: stl.contact_email,
                                 phone: stl.contact_phone
@@ -354,7 +363,7 @@ export default function LookupPage() {
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-2 transition-all"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Complete ₹{stl.total_amount} Payment</span>
+                            <span>Complete ₹{Number(stl.total_amount || 0)} Payment</span>
                           </button>
                         )}
                       </div>
@@ -367,16 +376,16 @@ export default function LookupPage() {
 
           {/* No Results Fallback */}
           {eventResults.length === 0 && stallResults.length === 0 && (
-            <div className="p-10 rounded-3xl glass-panel text-center space-y-4 max-w-lg mx-auto">
-              <AlertCircle className="w-10 h-10 text-slate-400 mx-auto" />
-              <h3 className="text-lg font-bold text-white">No Matching Records Found</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                We could not find any active event registration or stall booking matching &ldquo;{query}&rdquo;. Please verify the spelling or check the phone/email provided during registration.
+            <div className="p-10 rounded-3xl glass-panel text-center space-y-4 max-w-lg mx-auto border border-sky-500/20">
+              <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
+              <h3 className="text-lg font-bold text-white">Registration ID Not Found</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Registration ID not found. Please check the ID and try again.
               </p>
               <div className="pt-2">
                 <Link
                   href="/events"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 text-white text-xs font-semibold"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold shadow-lg shadow-sky-500/20 transition-all"
                 >
                   Register for an Event
                 </Link>
