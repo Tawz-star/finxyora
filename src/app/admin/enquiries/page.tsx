@@ -10,7 +10,11 @@ import {
   AlertCircle,
   RefreshCw,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { EnquiryRecord } from '@/lib/db';
 
@@ -32,6 +36,13 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; border: string }
   }
 };
 
+interface EmailServiceInfo {
+  configured: boolean;
+  provider: 'Resend API' | 'Gmail SMTP' | 'None';
+  destinationEmail: string;
+  senderAddress: string;
+}
+
 export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<EnquiryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +50,27 @@ export default function AdminEnquiriesPage() {
   const [search, setSearch] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Email diagnostic state
+  const [emailInfo, setEmailInfo] = useState<EmailServiceInfo | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success?: boolean;
+    error?: string;
+    latencyMs?: number;
+    provider?: string;
+  } | null>(null);
+
+  const fetchEmailStatus = useCallback(() => {
+    fetch('/api/admin/test-email')
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.success && data.status) {
+          setEmailInfo(data.status);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchEnquiries = useCallback(() => {
     setLoading(true);
@@ -57,7 +89,35 @@ export default function AdminEnquiriesPage() {
 
   useEffect(() => {
     fetchEnquiries();
-  }, [fetchEnquiries]);
+    fetchEmailStatus();
+  }, [fetchEnquiries, fetchEmailStatus]);
+
+  const handleSendTestEmail = async () => {
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/admin/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      setTestResult({
+        success: data.success,
+        error: data.error,
+        latencyMs: data.latencyMs,
+        provider: data.provider
+      });
+      fetchEmailStatus();
+    } catch (err: unknown) {
+      setTestResult({
+        success: false,
+        error: err instanceof Error ? err.message : 'Network error triggering test email'
+      });
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const handleUpdateStatus = async (id: string, newStatus: 'new' | 'in-progress' | 'resolved') => {
     setActionLoading(id);
@@ -106,12 +166,84 @@ export default function AdminEnquiriesPage() {
         </div>
 
         <button
-          onClick={fetchEnquiries}
+          onClick={() => {
+            fetchEnquiries();
+            fetchEmailStatus();
+          }}
           className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex items-center gap-2 transition-all self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Feed</span>
         </button>
+      </div>
+
+      {/* Email Service Diagnostic Card */}
+      <div className="p-5 rounded-2xl glass-card border border-sky-500/20 bg-gradient-to-r from-slate-900/90 to-blue-950/40 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Outbound Email Channel:</span>
+              {emailInfo?.configured ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  {emailInfo.provider} Active
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  Credentials Missing (Pending Vercel Env Setup)
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-300">
+              Destination Inbox: <strong className="text-white">finxyora@gmail.com</strong> &bull; Sender: <code className="text-sky-300 text-[11px]">{emailInfo?.senderAddress || 'Not set'}</code>
+            </p>
+          </div>
+
+          <button
+            onClick={handleSendTestEmail}
+            disabled={testLoading}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white shadow-lg shadow-sky-500/20 flex items-center gap-2 self-start md:self-auto disabled:opacity-50 transition-all cursor-pointer"
+          >
+            {testLoading ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            )}
+            <span>{testLoading ? 'Testing Dispatch...' : 'Send Test Email to finxyora@gmail.com'}</span>
+          </button>
+        </div>
+
+        {/* Test Result Feedback */}
+        {testResult && (
+          <div
+            className={`p-3.5 rounded-xl text-xs flex items-start gap-2.5 border ${
+              testResult.success
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+            }`}
+          >
+            {testResult.success ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+            )}
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {testResult.success
+                  ? `✅ Test email successfully delivered to finxyora@gmail.com via ${testResult.provider} (${testResult.latencyMs}ms)`
+                  : `❌ Outbound delivery test failed: ${testResult.error}`}
+              </p>
+              {!testResult.success && (
+                <p className="text-[11px] text-slate-300">
+                  Tip: Add <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">GMAIL_USER</code> and{' '}
+                  <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">GMAIL_APP_PASSWORD</code> (or{' '}
+                  <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">RESEND_API_KEY</code>) to your Vercel Environment Variables.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {message && (
@@ -168,7 +300,7 @@ export default function AdminEnquiriesPage() {
             <p className="text-xs text-slate-400">
               {statusFilter !== 'ALL'
                 ? `No inquiries currently marked as "${statusFilter}".`
-                : 'No support queries have been submitted through the portal yet.'}
+                : 'No contact inquiries have been submitted yet.'}
             </p>
           </div>
         ) : (
@@ -176,6 +308,7 @@ export default function AdminEnquiriesPage() {
             {filteredEnquiries.map((enq) => {
               const badge = STATUS_BADGES[enq.status] || STATUS_BADGES.new;
               const isBusy = actionLoading === enq.id;
+              const emailDispatched = enq.email_dispatched === 1;
 
               return (
                 <div key={enq.id} className="py-5 space-y-3">
@@ -189,6 +322,23 @@ export default function AdminEnquiriesPage() {
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase ${badge.bg} ${badge.text} ${badge.border}`}>
                           {enq.status}
                         </span>
+
+                        {/* Email Dispatch Badge */}
+                        {emailDispatched ? (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            Dispatched to Gmail
+                          </span>
+                        ) : (
+                          <span
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                            title={enq.email_error || 'Saved in database, outbound email pending'}
+                          >
+                            <AlertCircle className="w-3 h-3 text-amber-400" />
+                            Saved in DB (Email pending)
+                          </span>
+                        )}
+
                         <span className="text-[11px] text-slate-500">
                           {new Date(enq.created_at).toLocaleString('en-IN', {
                             dateStyle: 'medium',
@@ -223,7 +373,7 @@ export default function AdminEnquiriesPage() {
                         <button
                           onClick={() => handleUpdateStatus(enq.id, 'resolved')}
                           disabled={isBusy}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
                         >
                           {isBusy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                           <span>Resolve</span>
@@ -232,7 +382,7 @@ export default function AdminEnquiriesPage() {
                         <button
                           onClick={() => handleUpdateStatus(enq.id, 'new')}
                           disabled={isBusy}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 transition-all disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700 transition-all disabled:opacity-50 cursor-pointer"
                         >
                           Reopen
                         </button>

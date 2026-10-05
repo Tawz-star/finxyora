@@ -262,6 +262,8 @@ export interface EnquiryRecord {
   subject: string;
   message: string;
   status: 'new' | 'in-progress' | 'resolved';
+  email_dispatched?: number;
+  email_error?: string;
   created_at: string;
 }
 
@@ -434,6 +436,8 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('payments', 'verified_by', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'verified_at', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'rejection_reason', 'TEXT');
+    await safeAddPgCol('enquiries', 'email_dispatched', 'INTEGER DEFAULT 0');
+    await safeAddPgCol('enquiries', 'email_error', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -613,6 +617,8 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('payments', 'verified_by', 'TEXT');
     safeAddSqCol('payments', 'verified_at', 'TEXT');
     safeAddSqCol('payments', 'rejection_reason', 'TEXT');
+    safeAddSqCol('enquiries', 'email_dispatched', 'INTEGER NOT NULL DEFAULT 0');
+    safeAddSqCol('enquiries', 'email_error', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -2261,14 +2267,25 @@ export async function createEnquiry(data: {
   email: string;
   subject: string;
   message: string;
+  email_dispatched?: number;
+  email_error?: string;
 }): Promise<EnquiryRecord> {
   await ensureSchema();
   const id = `FX-ENQ-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   const now = new Date().toISOString();
   await execute(`
-    INSERT INTO enquiries (id, name, email, subject, message, status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'new', ?)
-  `, [id, data.name.trim(), data.email.trim().toLowerCase(), data.subject.trim(), data.message.trim(), now]);
+    INSERT INTO enquiries (id, name, email, subject, message, status, email_dispatched, email_error, created_at)
+    VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?)
+  `, [
+    id,
+    data.name.trim(),
+    data.email.trim().toLowerCase(),
+    data.subject.trim(),
+    data.message.trim(),
+    data.email_dispatched ?? 0,
+    data.email_error || null,
+    now
+  ]);
   return {
     id,
     name: data.name.trim(),
@@ -2276,8 +2293,23 @@ export async function createEnquiry(data: {
     subject: data.subject.trim(),
     message: data.message.trim(),
     status: 'new',
+    email_dispatched: data.email_dispatched ?? 0,
+    email_error: data.email_error,
     created_at: now
   };
+}
+
+export async function updateEnquiryEmailStatus(
+  id: string,
+  dispatched: boolean,
+  error?: string
+): Promise<boolean> {
+  await ensureSchema();
+  const res = await execute(
+    'UPDATE enquiries SET email_dispatched = ?, email_error = ? WHERE id = ?',
+    [dispatched ? 1 : 0, error || null, id]
+  );
+  return res.rowCount > 0;
 }
 
 export async function getAllEnquiries(status?: string): Promise<EnquiryRecord[]> {

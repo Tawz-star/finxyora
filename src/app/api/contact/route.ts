@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendQueryEmail } from '@/lib/email';
+import { sendQueryEmail, EmailSendResult } from '@/lib/email';
 import { createEnquiry, logAuditEvent } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
@@ -32,17 +32,10 @@ export async function POST(req: NextRequest) {
     const cleanSubject = (subject && String(subject).trim()) || 'General Inquiry';
     const cleanMessage = message.trim();
 
-    // 1. Atomically save enquiry into centralized SQL database
-    const savedEnquiry = await createEnquiry({
-      name: cleanName,
-      email: cleanEmail,
-      subject: cleanSubject,
-      message: cleanMessage
-    });
-
-    // 2. Dispatch email to finxyora@gmail.com
+    // 1. Dispatch email to finxyora@gmail.com
+    let emailResult: EmailSendResult = { success: false, configured: false, error: 'Not attempted' };
     try {
-      await sendQueryEmail({
+      emailResult = await sendQueryEmail({
         name: cleanName,
         email: cleanEmail,
         subject: cleanSubject,
@@ -50,20 +43,41 @@ export async function POST(req: NextRequest) {
       });
     } catch (emailErr) {
       console.warn('Query email dispatch notification failed (non-fatal):', emailErr);
+      emailResult = {
+        success: false,
+        configured: false,
+        error: emailErr instanceof Error ? emailErr.message : 'Email dispatch exception'
+      };
     }
+
+    // 2. Atomically save enquiry into centralized SQL database with delivery status
+    const savedEnquiry = await createEnquiry({
+      name: cleanName,
+      email: cleanEmail,
+      subject: cleanSubject,
+      message: cleanMessage,
+      email_dispatched: emailResult.success ? 1 : 0,
+      email_error: emailResult.success ? undefined : (emailResult.error || 'Email dispatch failed')
+    });
 
     await logAuditEvent(
       cleanEmail,
       'CONTACT_QUERY_SUBMITTED',
       'ENQUIRY',
       savedEnquiry.id,
-      `Subject: ${cleanSubject}`
+      `Subject: ${cleanSubject} | Email Dispatched: ${emailResult.success}`
     );
+
+    const confirmationMsg = emailResult.success
+      ? 'Your query has been dispatched directly to finxyora@gmail.com. We will respond promptly!'
+      : 'Your query has been logged securely in our system. Our team will review it and get in touch with you shortly.';
 
     return NextResponse.json({
       success: true,
       enquiryId: savedEnquiry.id,
-      message: 'Your query has been dispatched directly to finxyora@gmail.com. We will respond promptly!'
+      emailDispatched: emailResult.success,
+      emailConfigured: emailResult.configured,
+      message: confirmationMsg
     });
   } catch (err: unknown) {
     console.error('Contact query error:', err);
