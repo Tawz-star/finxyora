@@ -65,6 +65,7 @@ interface StallBookingView {
   contact_email: string;
   contact_phone: string;
   products_services: string;
+  business_details?: string;
   stalls_requested: number | string;
   has_electricity: number;
   total_amount: number | string;
@@ -97,27 +98,45 @@ export default function RegistrationDetailsView({
     setError(null);
 
     const cleanId = referenceId.trim();
-    const isStall = cleanId.startsWith('FIN-STL-') || cleanId.startsWith('FX-STL-');
-    const isEvent = cleanId.startsWith('FIN-') || cleanId.startsWith('FX-EVT-');
+    const cleanUpper = cleanId.toUpperCase();
+    const isStall =
+      cleanUpper.startsWith('FIN-STL-') ||
+      cleanUpper.startsWith('FX-STL-') ||
+      cleanUpper.startsWith('STL-') ||
+      cleanUpper.includes('-STL-') ||
+      cleanUpper.includes('STL');
+    const isEvent =
+      !isStall &&
+      (cleanUpper.startsWith('FIN-') ||
+        cleanUpper.startsWith('FX-EVT-') ||
+        cleanUpper.startsWith('EVT-') ||
+        cleanUpper.includes('-EVT-'));
 
-    const fetchUrl = isStall
-      ? `/api/stalls/book?id=${encodeURIComponent(cleanId)}`
-      : isEvent
-      ? `/api/registrations?id=${encodeURIComponent(cleanId)}`
-      : `/api/lookup`;
-
-    if (isEvent) {
-      fetch(fetchUrl)
+    if (isStall) {
+      // 1. Fetch direct stall endpoint, with fallback to multi-field /api/lookup
+      fetch(`/api/stalls/book?id=${encodeURIComponent(cleanId)}`)
         .then(async (res) => {
           const data = await res.json();
-          if (!isMounted) return;
-          if (!res.ok || !data.registration) {
-            throw new Error(data.error || 'Registration ID not found');
+          if (res.ok && data.booking) {
+            return data.booking;
           }
-          setEventReg(data.registration);
+          // Secondary fallback to lookup API
+          const fallbackRes = await fetch('/api/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: cleanId })
+          });
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.stallBookings && fallbackData.stallBookings.length > 0) {
+            return fallbackData.stallBookings[0];
+          }
+          throw new Error('Registration ID not found');
+        })
+        .then(async (booking) => {
+          if (!isMounted) return;
+          setStallBooking(booking);
 
-          // Generate QR code safely
-          const verifyPayload = `FINXYORA-VERIFIED:${cleanId}:${data.registration.payment_status}:${data.registration.leader_email}`;
+          const verifyPayload = `FINXYORA-STALL-VERIFIED:${cleanId}:${booking.status}:${booking.contact_email}`;
           const qr = await QRCode.toDataURL(verifyPayload, {
             width: 200,
             margin: 1,
@@ -128,7 +147,7 @@ export default function RegistrationDetailsView({
           try {
             confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
           } catch {
-            // ignore confetti error
+            // ignore confetti
           }
         })
         .catch((err) => {
@@ -137,17 +156,32 @@ export default function RegistrationDetailsView({
         .finally(() => {
           if (isMounted) setLoading(false);
         });
-    } else if (isStall) {
-      fetch(fetchUrl)
+    } else if (isEvent) {
+      // 2. Fetch direct event endpoint, with fallback to multi-field /api/lookup
+      fetch(`/api/registrations?id=${encodeURIComponent(cleanId)}`)
         .then(async (res) => {
           const data = await res.json();
-          if (!isMounted) return;
-          if (!res.ok || !data.booking) {
-            throw new Error(data.error || 'Stall booking record not found');
+          if (res.ok && data.registration) {
+            return data.registration;
           }
-          setStallBooking(data.booking);
+          // Secondary fallback to lookup API
+          const fallbackRes = await fetch('/api/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: cleanId })
+          });
+          const fallbackData = await fallbackRes.json();
+          if (fallbackData.eventRegistrations && fallbackData.eventRegistrations.length > 0) {
+            return fallbackData.eventRegistrations[0];
+          }
+          throw new Error('Registration ID not found');
+        })
+        .then(async (registration) => {
+          if (!isMounted) return;
+          setEventReg(registration);
 
-          const verifyPayload = `FINXYORA-STALL-VERIFIED:${cleanId}:${data.booking.status}:${data.booking.contact_email}`;
+          // Generate QR code safely
+          const verifyPayload = `FINXYORA-VERIFIED:${cleanId}:${registration.payment_status}:${registration.leader_email}`;
           const qr = await QRCode.toDataURL(verifyPayload, {
             width: 200,
             margin: 1,
@@ -168,7 +202,7 @@ export default function RegistrationDetailsView({
           if (isMounted) setLoading(false);
         });
     } else {
-      // General multi-table SQL search fallback
+      // 3. General multi-table SQL search fallback
       fetch('/api/lookup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -179,19 +213,19 @@ export default function RegistrationDetailsView({
           if (!isMounted) return;
           if (!res.ok) throw new Error(data.error || 'Record not found');
 
-          if (data.eventRegistrations && data.eventRegistrations.length > 0) {
-            const reg = data.eventRegistrations[0];
-            setEventReg(reg);
-            const qr = await QRCode.toDataURL(
-              `FINXYORA-VERIFIED:${cleanId}:${reg.payment_status}:${reg.leader_email}`,
-              { width: 200, margin: 1, color: { dark: '#07152f', light: '#ffffff' } }
-            );
-            if (isMounted) setQrDataUrl(qr);
-          } else if (data.stallBookings && data.stallBookings.length > 0) {
+          if (data.stallBookings && data.stallBookings.length > 0) {
             const stl = data.stallBookings[0];
             setStallBooking(stl);
             const qr = await QRCode.toDataURL(
               `FINXYORA-STALL-VERIFIED:${cleanId}:${stl.status}:${stl.contact_email}`,
+              { width: 200, margin: 1, color: { dark: '#07152f', light: '#ffffff' } }
+            );
+            if (isMounted) setQrDataUrl(qr);
+          } else if (data.eventRegistrations && data.eventRegistrations.length > 0) {
+            const reg = data.eventRegistrations[0];
+            setEventReg(reg);
+            const qr = await QRCode.toDataURL(
+              `FINXYORA-VERIFIED:${cleanId}:${reg.payment_status}:${reg.leader_email}`,
               { width: 200, margin: 1, color: { dark: '#07152f', light: '#ffffff' } }
             );
             if (isMounted) setQrDataUrl(qr);
@@ -494,6 +528,64 @@ export default function RegistrationDetailsView({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Registered Members & Exhibitors List (for Stall Bookings) */}
+        {!isEvent && stallBooking && (
+          <div className="py-8 border-b border-slate-800 space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Store className="w-4 h-4 text-emerald-400" />
+              Registered Stall Exhibitor &amp; Member Details
+            </h3>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 font-semibold">
+                    <th className="pb-2">Badge #</th>
+                    <th className="pb-2">Registered Representative / Lead</th>
+                    <th className="pb-2">Affiliation / Entity</th>
+                    <th className="pb-2">Department / Class</th>
+                    <th className="pb-2">Contact Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  <tr className="text-slate-300">
+                    <td className="py-3 font-mono text-emerald-400 font-bold">EXHIBITOR-01</td>
+                    <td className="py-3 font-bold text-white">{stallBooking.contact_name}</td>
+                    <td className="py-3">
+                      <div className="font-semibold text-white">{stallBooking.entity_name}</div>
+                      <div className="text-[11px] text-slate-400">{stallBooking.college_name || 'Autonomous Institution / Commercial'}</div>
+                    </td>
+                    <td className="py-3">{stallBooking.department_class || 'Registered Commercial Vendor'}</td>
+                    <td className="py-3 font-mono text-[11px]">
+                      <div>{stallBooking.contact_phone}</div>
+                      <div className="text-slate-400">{stallBooking.contact_email}</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className={`grid grid-cols-1 ${stallBooking.business_details ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4 pt-2`}>
+              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Products &amp; Commercial Services</span>
+                <span className="text-xs text-white font-medium block">{stallBooking.products_services}</span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Stall Space Specifications</span>
+                <span className="text-xs text-emerald-300 font-medium block">
+                  {Number(stallBooking.stalls_requested || 1)} Allocated Unit(s) &bull; {stallBooking.has_electricity ? 'Dedicated 15A/30A Electrical Power Provided' : 'Standard Dry Layout'}
+                </span>
+              </div>
+              {stallBooking.business_details && (
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">Industry &amp; Entity Profile</span>
+                  <span className="text-xs text-sky-300 font-medium block">{stallBooking.business_details}</span>
+                </div>
+              )}
             </div>
           </div>
         )}

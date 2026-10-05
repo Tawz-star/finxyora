@@ -244,16 +244,15 @@ export default function LookupPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                        {hasPass ? (
-                          <Link
-                            href={`/lookup/${encodeURIComponent(reg.id)}`}
-                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 flex items-center gap-2 transition-all"
-                          >
-                            <span>Continue / View Details</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                        ) : (
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0 flex-wrap">
+                        <Link
+                          href={`/lookup/${encodeURIComponent(reg.id)}`}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 flex items-center gap-1.5 transition-all"
+                        >
+                          <span>View Details &amp; Pass</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                        {!hasPass && (
                           <button
                             type="button"
                             onClick={() =>
@@ -266,10 +265,10 @@ export default function LookupPage() {
                                 phone: reg.leader_phone
                               })
                             }
-                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-2 transition-all"
+                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Complete ₹{Number(reg.total_fee || 0)} Payment</span>
+                            <span>Pay ₹{Number(reg.total_fee || 0)}</span>
                           </button>
                         )}
                       </div>
@@ -338,16 +337,15 @@ export default function LookupPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                        {hasPass ? (
-                          <Link
-                            href={`/lookup/${encodeURIComponent(stl.id)}`}
-                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/20 flex items-center gap-2 transition-all"
-                          >
-                            <span>Continue / View Details</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                        ) : (
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0 flex-wrap">
+                        <Link
+                          href={`/lookup/${encodeURIComponent(stl.id)}`}
+                          className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition-all"
+                        >
+                          <span>View Details &amp; Members</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                        {!hasPass && (
                           <button
                             type="button"
                             onClick={() =>
@@ -360,10 +358,10 @@ export default function LookupPage() {
                                 phone: stl.contact_phone
                               })
                             }
-                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-2 transition-all"
+                            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all"
                           >
                             <CreditCard className="w-3.5 h-3.5" />
-                            <span>Complete ₹{Number(stl.total_amount || 0)} Payment</span>
+                            <span>Pay ₹{Number(stl.total_amount || 0)}</span>
                           </button>
                         )}
                       </div>

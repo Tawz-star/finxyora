@@ -1138,8 +1138,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
     `, [
       regId,
       event.id,
-      collegeName.trim(),
-      collegeLocation.trim(),
+      collegeName?.trim() || 'Bishop Heber College',
+      collegeLocation?.trim() || 'Tiruchirappalli',
       teamName?.trim() || null,
       leaderName.trim(),
       leaderEmail.trim().toLowerCase(),
@@ -1374,8 +1374,8 @@ export async function createEventRegistration(data: {
   `, [
     regId,
     event.id,
-    data.collegeName.trim(),
-    data.collegeLocation.trim(),
+    data.collegeName?.trim() || 'Bishop Heber College',
+    data.collegeLocation?.trim() || 'Tiruchirappalli',
     data.teamName?.trim() || null,
     data.leaderName.trim(),
     data.leaderEmail.trim().toLowerCase(),
@@ -1418,7 +1418,10 @@ export async function createEventRegistration(data: {
 // =============================================================
 
 export async function getEventRegistration(id: string): Promise<EventRegistrationRecord | null> {
-  const reg = await queryOne<EventRegistrationRecord>('SELECT * FROM event_registrations WHERE id = ?', [id]);
+  const reg = await queryOne<EventRegistrationRecord>(
+    'SELECT * FROM event_registrations WHERE id = ? OR UPPER(id) = UPPER(?)',
+    [id, id]
+  );
   if (!reg) return null;
 
   const participants = await query<ParticipantRecord>(
@@ -1650,13 +1653,17 @@ export async function createStallBooking(data: {
 }
 
 export async function getStallBooking(id: string): Promise<StallBookingRecord | null> {
-  const booking = await queryOne<StallBookingRecord>('SELECT * FROM stall_bookings WHERE id = ?', [id]);
+  const booking = await queryOne<StallBookingRecord>(
+    'SELECT * FROM stall_bookings WHERE id = ? OR UPPER(id) = UPPER(?)',
+    [id, id]
+  );
   if (!booking) return null;
-  const opt = await queryOne<StallOptionRecord>('SELECT name FROM stall_options WHERE id = ?', [booking.option_id]);
+  const opt = await queryOne<StallOptionRecord>('SELECT name, has_electricity FROM stall_options WHERE id = ?', [booking.option_id]);
   return {
     ...booking,
     total_amount: Number(booking.total_amount || 0),
     stalls_requested: Number(booking.stalls_requested || 1),
+    has_electricity: booking.has_electricity ?? opt?.has_electricity ?? 0,
     option_name: opt?.name
   };
 }

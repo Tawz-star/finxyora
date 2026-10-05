@@ -59,13 +59,15 @@ export default function SingleEventPage() {
   // Form Steps: 1 = Details & Participants, 2 = Review & Confirm
   const [step, setStep] = useState<1 | 2>(1);
 
-  // Team & College Details
+  // Team & Contact Details
   const [collegeName, setCollegeName] = useState('');
   const [collegeLocation, setCollegeLocation] = useState('');
   const [teamName, setTeamName] = useState('');
   const [leaderName, setLeaderName] = useState('');
   const [leaderEmail, setLeaderEmail] = useState('');
   const [leaderPhone, setLeaderPhone] = useState('');
+  const [soloEmail, setSoloEmail] = useState('');
+  const [soloPhone, setSoloPhone] = useState('');
 
   // Dynamic participant count selection (for events like Corporate Walk [6-8] or Football Auction [2-3])
   const [selectedCount, setSelectedCount] = useState<number>(2);
@@ -153,31 +155,59 @@ export default function SingleEventPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!collegeName.trim() || !collegeLocation.trim() || !leaderName.trim() || !leaderEmail.trim() || !leaderPhone.trim()) {
-      setFormError('Please fill in all team and college information fields.');
-      return;
-    }
+    const isSoloEvent = event?.max_participants === 1;
 
-    // Business Plan and all other events require team name
-    if (!teamName.trim()) {
-      setFormError('Please specify a Team Name.');
-      return;
-    }
-
-    // Validate participant count
-    if (event) {
-      if (selectedCount < event.min_participants || selectedCount > event.max_participants) {
-        setFormError(`Participant count must be between ${event.min_participants} and ${event.max_participants}.`);
+    if (isSoloEvent) {
+      const p = participants[0];
+      if (!p?.fullName?.trim()) {
+        setFormError('Please enter candidate full legal name.');
         return;
       }
-    }
-
-    // Validate each participant
-    for (let i = 0; i < participants.length; i++) {
-      const p = participants[i];
-      if (!p.fullName.trim() || !p.rollNumber.trim() || !p.department.trim() || !p.yearOfStudy.trim() || !p.section.trim()) {
-        setFormError(`Please complete all fields for Participant #${i + 1}.`);
+      if (!soloEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(soloEmail.trim())) {
+        setFormError('Please enter a valid candidate email address.');
         return;
+      }
+      if (soloPhone.replace(/\D/g, '').length < 10) {
+        setFormError('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+      if (!p?.rollNumber?.trim() || !p?.department?.trim() || !p?.yearOfStudy?.trim() || !p?.section?.trim()) {
+        setFormError('Please complete all academic details (Roll No, Department, Year, Section).');
+        return;
+      }
+    } else {
+      if (!teamName.trim()) {
+        setFormError('Please specify a Team Name.');
+        return;
+      }
+      if (!leaderName.trim() || !leaderEmail.trim() || !leaderPhone.trim()) {
+        setFormError('Please fill in team leader name, email address, and mobile number.');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leaderEmail.trim())) {
+        setFormError('Please enter a valid team leader email address.');
+        return;
+      }
+      if (leaderPhone.replace(/\D/g, '').length < 10) {
+        setFormError('Please enter a valid 10-digit mobile number for team leader.');
+        return;
+      }
+
+      // Validate participant count
+      if (event) {
+        if (selectedCount < event.min_participants || selectedCount > event.max_participants) {
+          setFormError(`Participant count must be between ${event.min_participants} and ${event.max_participants}.`);
+          return;
+        }
+      }
+
+      // Validate each participant
+      for (let i = 0; i < participants.length; i++) {
+        const p = participants[i];
+        if (!p.fullName.trim() || !p.rollNumber.trim() || !p.department.trim() || !p.yearOfStudy.trim() || !p.section.trim()) {
+          setFormError(`Please complete all fields for Participant #${i + 1}.`);
+          return;
+        }
       }
     }
 
@@ -202,14 +232,22 @@ export default function SingleEventPage() {
     if (!event) return;
     setFormError(null);
 
+    const isSoloEvent = event.max_participants === 1;
+    const finalLeaderName = isSoloEvent ? participants[0]?.fullName.trim() : leaderName.trim();
+    const finalLeaderEmail = isSoloEvent ? soloEmail.trim().toLowerCase() : leaderEmail.trim().toLowerCase();
+    const finalLeaderPhone = isSoloEvent ? soloPhone.trim() : leaderPhone.trim();
+    const finalTeamName = isSoloEvent ? `${participants[0]?.fullName.trim()} (Solo)` : teamName.trim();
+    const finalCollegeName = collegeName.trim() || 'Bishop Heber College';
+    const finalCollegeLocation = collegeLocation.trim() || 'Tiruchirappalli';
+
     const payload = {
       eventId: event.id,
-      collegeName,
-      collegeLocation,
-      teamName: teamName,
-      leaderName,
-      leaderEmail,
-      leaderPhone,
+      collegeName: finalCollegeName,
+      collegeLocation: finalCollegeLocation,
+      teamName: finalTeamName,
+      leaderName: finalLeaderName,
+      leaderEmail: finalLeaderEmail,
+      leaderPhone: finalLeaderPhone,
       participants
     };
 
@@ -253,6 +291,7 @@ export default function SingleEventPage() {
     }
   })();
 
+  const isSolo = event.max_participants === 1;
   const isStockWar = event.id === 'corporate-walk';
   const isFootballAuction = event.id === 'football-auction';
 
@@ -431,101 +470,73 @@ export default function SingleEventPage() {
             {step === 1 && (
               <form onSubmit={handleProceedToReview} className="space-y-8">
                 
-                {/* Section A: College & Institution */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
-                    <Building className="w-4 h-4 text-sky-400" />
-                    College &amp; Primary Contact
-                  </h4>
+                {/* Section A: Team & Primary Contact (Rendered ONLY for Group Events, completely removed for Solo Events) */}
+                {!isSolo && (
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
+                      <Users className="w-4 h-4 text-sky-400" />
+                      Team &amp; Primary Contact
+                    </h4>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        College / Institution Name <span className="text-rose-400">*</span>
+                        Team Name <span className="text-rose-400">*</span>
                       </label>
                       <input
                         type="text"
                         required
-                        value={collegeName}
-                        onChange={(e) => setCollegeName(e.target.value)}
-                        placeholder="e.g. Loyola College"
+                        value={teamName}
+                        onChange={(e) => setTeamName(e.target.value)}
+                        placeholder="e.g. Alpha FinTech Squad"
                         className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        College City / Location <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={collegeLocation}
-                        onChange={(e) => setCollegeLocation(e.target.value)}
-                        placeholder="e.g. Chennai, Tamil Nadu"
-                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                      />
-                    </div>
-                  </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Team Leader Name <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={leaderName}
+                          onChange={(e) => setLeaderName(e.target.value)}
+                          placeholder="Full Name"
+                          className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Team Name <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                      placeholder="e.g. Alpha FinTech Squad"
-                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                    />
-                  </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Leader Email Address <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={leaderEmail}
+                          onChange={(e) => setLeaderEmail(e.target.value)}
+                          placeholder="leader@college.edu"
+                          className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                        />
+                      </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Team Leader Name <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={leaderName}
-                        onChange={(e) => setLeaderName(e.target.value)}
-                        placeholder="Full Name"
-                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Leader Email Address <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={leaderEmail}
-                        onChange={(e) => setLeaderEmail(e.target.value)}
-                        placeholder="leader@college.edu"
-                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Mobile Number (WhatsApp) <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={leaderPhone}
-                        onChange={(e) => setLeaderPhone(e.target.value)}
-                        placeholder="10-digit Mobile"
-                        className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
-                      />
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Mobile Number (WhatsApp) <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={leaderPhone}
+                          onChange={(e) => setLeaderPhone(e.target.value)}
+                          placeholder="10-digit Mobile"
+                          className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Section B: Dynamic Participant Count Selector */}
                 {event.min_participants !== event.max_participants ? (
@@ -578,13 +589,11 @@ export default function SingleEventPage() {
                       })}
                     </div>
                   </div>
-                ) : (
+                ) : !isSolo ? (
                   <div className="p-4 rounded-2xl bg-slate-900/80 border border-sky-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <span className="text-xs font-bold text-white block">
-                        {event.min_participants === 1
-                          ? 'Solo Participation (1 Candidate)'
-                          : `Team Event (Strictly ${event.min_participants} Participants)`}
+                        Team Event (Strictly {event.min_participants} Participants)
                       </span>
                       <span className="text-[11px] text-slate-400">
                         Fee rule: ₹{event.registration_fee || 50} per person &bull; Total: {event.min_participants} × ₹{event.registration_fee || 50} = ₹{event.min_participants * (event.registration_fee || 50)}
@@ -594,14 +603,14 @@ export default function SingleEventPage() {
                       ₹{event.min_participants * (event.registration_fee || 50)} Total
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 {/* Section C: Individual Participant Fields (Dynamically generated) */}
                 <div className="space-y-6">
                   <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center justify-between border-b border-slate-800 pb-2">
                     <span className="flex items-center gap-2">
                       <User className="w-4 h-4 text-sky-400" />
-                      Participant Details ({participants.length} Member{participants.length > 1 ? 's' : ''})
+                      {isSolo ? 'Candidate Information' : `Participant Details (${participants.length} Member${participants.length > 1 ? 's' : ''})`}
                     </span>
                     <span className="text-[11px] text-slate-400 font-normal">
                       All fields mandatory for festival ID badging
@@ -616,7 +625,7 @@ export default function SingleEventPage() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-sky-300 uppercase tracking-wider">
-                            Participant #{index + 1} {index === 0 && '(Team Leader)'}
+                            {isSolo ? 'Candidate Profile' : `Participant #${index + 1} ${index === 0 ? '(Team Leader)' : ''}`}
                           </span>
                         </div>
 
@@ -649,6 +658,39 @@ export default function SingleEventPage() {
                             />
                           </div>
                         </div>
+
+                        {/* Contact details for solo candidate */}
+                        {isSolo && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                                Email Address <span className="text-rose-400">*</span>
+                              </label>
+                              <input
+                                type="email"
+                                required
+                                value={soloEmail}
+                                onChange={(e) => setSoloEmail(e.target.value)}
+                                placeholder="candidate@college.edu"
+                                className="w-full px-3 py-2 rounded-xl glass-input text-xs"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                                Mobile Number (WhatsApp) <span className="text-rose-400">*</span>
+                              </label>
+                              <input
+                                type="tel"
+                                required
+                                value={soloPhone}
+                                onChange={(e) => setSoloPhone(e.target.value)}
+                                placeholder="10-digit Mobile"
+                                className="w-full px-3 py-2 rounded-xl glass-input text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
@@ -732,42 +774,63 @@ export default function SingleEventPage() {
                   </p>
                 </div>
 
-                {/* Team & College Summary */}
+                {/* Team & Candidate Summary */}
                 <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 text-xs">
                   <h4 className="font-bold text-white uppercase tracking-wider text-xs border-b border-slate-800 pb-2">
-                    Institution &amp; Team Details
+                    {isSolo ? 'Candidate Details' : 'Team & Primary Contact'}
                   </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-slate-400 block">Competition:</span>
-                      <span className="text-white font-semibold">{event.title}</span>
+                  {isSolo ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-slate-400 block">Competition:</span>
+                        <span className="text-white font-semibold">{event.title}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Candidate Name:</span>
+                        <span className="text-sky-300 font-semibold">{participants[0]?.fullName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Email Address:</span>
+                        <span className="text-white font-semibold">{soloEmail}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Mobile (WhatsApp):</span>
+                        <span className="text-white font-semibold">{soloPhone}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block">College:</span>
-                      <span className="text-white font-semibold">{collegeName} ({collegeLocation})</span>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-slate-400 block">Competition:</span>
+                        <span className="text-white font-semibold">{event.title}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Team Name:</span>
+                        <span className="text-sky-300 font-semibold">{teamName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Team Leader:</span>
+                        <span className="text-white font-semibold">{leaderName}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Leader Contact:</span>
+                        <span className="text-white font-semibold">{leaderPhone} &bull; {leaderEmail}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block">Team Name:</span>
-                      <span className="text-white font-semibold">{teamName}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">Primary Contact:</span>
-                      <span className="text-white font-semibold">{leaderName} ({leaderPhone})</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Participants Summary List */}
                 <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3 text-xs">
                   <h4 className="font-bold text-white uppercase tracking-wider text-xs border-b border-slate-800 pb-2">
-                    Registered Participants ({participants.length})
+                    {isSolo ? 'Academic Profile' : `Registered Participants (${participants.length})`}
                   </h4>
                   <div className="space-y-2">
                     {participants.map((p, idx) => (
                       <div key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-800/60 last:border-0">
                         <div>
                           <span className="font-bold text-white">
-                            #{idx + 1}: {p.fullName}
+                            {isSolo ? p.fullName : `#${idx + 1}: ${p.fullName}`}
                           </span>
                           <span className="text-slate-400 ml-2">
                             ({p.rollNumber} &bull; {p.department} &bull; {p.yearOfStudy} Sec {p.section})
@@ -839,8 +902,8 @@ export default function SingleEventPage() {
           referenceType="event"
           amount={calculateTotalFee()}
           itemTitle={`${event.title} Registration`}
-          payerEmail={leaderEmail}
-          payerPhone={leaderPhone}
+          payerEmail={event.max_participants === 1 ? soloEmail : leaderEmail}
+          payerPhone={event.max_participants === 1 ? soloPhone : leaderPhone}
           eventData={eventPayload}
           onPaymentSuccess={(receiptUrl) => {
             setIsPaymentModalOpen(false);

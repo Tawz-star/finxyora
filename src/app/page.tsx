@@ -176,15 +176,15 @@ export default async function HomePage() {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Participants who win the event will receive official First Prize or Second Prize honours and merit recognition across every competition arena.
+              Participants who win the event will receive official First Prize, Second Prize, or Third Prize honours and merit recognition across every competition arena.
             </p>
           </div>
 
-          {/* Two Balanced Prize Cards: First Prize & Second Prize */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          {/* Three Balanced Prize Cards: First, Second, and Third Prize */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
             
             {/* FIRST PRIZE */}
-            <div className="relative p-6 sm:p-8 rounded-3xl glass-card border border-amber-400/40 bg-gradient-to-b from-amber-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-amber-500/10 hover:border-amber-400/70 transition-all flex flex-col justify-between">
+            <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-amber-400/40 bg-gradient-to-b from-amber-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-amber-500/10 hover:border-amber-400/70 transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <span className="text-3xl sm:text-4xl">🥇</span>
@@ -195,24 +195,24 @@ export default async function HomePage() {
                 <h3 className="text-2xl font-black text-white tracking-tight">
                   FIRST PRIZE
                 </h3>
-                <p className="text-xs font-semibold text-amber-300 uppercase tracking-wider mt-1 mb-4">
+                <p className="text-xs font-semibold text-amber-300 uppercase tracking-wider mt-1 mb-3">
                   Winner Merit Award
                 </p>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   Awarded to the top-ranking team or participant in each flagship arena, featuring official winner honours, championship merit credentials, and departmental excellence citations.
                 </p>
               </div>
-              <div className="pt-6 mt-6 border-t border-amber-500/20 flex items-center justify-between text-xs text-amber-200/80">
+              <div className="pt-5 mt-6 border-t border-amber-500/20 flex items-center justify-between text-xs text-amber-200/80">
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  Highest Arena Distinction
+                  Highest Distinction
                 </span>
                 <span className="font-mono font-bold text-amber-300">Rank #1</span>
               </div>
             </div>
 
             {/* SECOND PRIZE */}
-            <div className="relative p-6 sm:p-8 rounded-3xl glass-card border border-sky-400/30 bg-gradient-to-b from-sky-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-sky-500/10 hover:border-sky-400/60 transition-all flex flex-col justify-between">
+            <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-sky-400/30 bg-gradient-to-b from-sky-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-sky-500/10 hover:border-sky-400/60 transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <span className="text-3xl sm:text-4xl">🥈</span>
@@ -223,19 +223,47 @@ export default async function HomePage() {
                 <h3 className="text-2xl font-black text-white tracking-tight">
                   SECOND PRIZE
                 </h3>
-                <p className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1 mb-4">
+                <p className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1 mb-3">
                   Runner-Up Merit Award
                 </p>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   Awarded to the runner-up team or participant in each flagship arena, recognizing competitive distinction, strategic execution, and official merit credentials.
                 </p>
               </div>
-              <div className="pt-6 mt-6 border-t border-sky-500/20 flex items-center justify-between text-xs text-sky-200/80">
+              <div className="pt-5 mt-6 border-t border-sky-500/20 flex items-center justify-between text-xs text-sky-200/80">
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                  Official Runner-Up Citation
+                  Runner-Up Citation
                 </span>
                 <span className="font-mono font-bold text-sky-300">Rank #2</span>
+              </div>
+            </div>
+
+            {/* THIRD PRIZE */}
+            <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-orange-400/30 bg-gradient-to-b from-orange-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-orange-500/10 hover:border-orange-400/60 transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <span className="text-3xl sm:text-4xl">🥉</span>
+                  <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-orange-400/20 text-orange-300 border border-orange-400/40">
+                    2nd Runner-Up
+                  </span>
+                </div>
+                <h3 className="text-2xl font-black text-white tracking-tight">
+                  THIRD PRIZE
+                </h3>
+                <p className="text-xs font-semibold text-orange-300 uppercase tracking-wider mt-1 mb-3">
+                  Second Runner-Up Award
+                </p>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  Awarded to the third-place team or participant in each flagship arena, recognizing exceptional technical execution, strategic acumen, and official podium merit credentials.
+                </p>
+              </div>
+              <div className="pt-5 mt-6 border-t border-orange-500/20 flex items-center justify-between text-xs text-orange-200/80">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                  Podium Distinction
+                </span>
+                <span className="font-mono font-bold text-orange-300">Rank #3</span>
               </div>
             </div>
 

@@ -40,8 +40,9 @@ async function performLookup(searchQuery: string) {
 
     // 2. Multi-field Event Registrations Search (Async central SQL)
     const eventConditions = [
+      'UPPER(er.id) = UPPER(?)',
       'er.id = ?',
-      'er.transaction_id = ?',
+      'UPPER(er.transaction_id) = UPPER(?)',
       'LOWER(er.leader_email) = ?',
       'er.leader_phone = ?',
       'LOWER(er.leader_name) LIKE ?',
@@ -51,6 +52,7 @@ async function performLookup(searchQuery: string) {
       'p.roll_number = ?'
     ];
     const eventParams: (string | number)[] = [
+      trimmed,
       trimmed,
       trimmed,
       lower,
@@ -78,18 +80,26 @@ async function performLookup(searchQuery: string) {
 
     // 3. Multi-field Stall Bookings Search (Async central SQL)
     const stallConditions = [
+      'UPPER(id) = UPPER(?)',
       'id = ?',
-      'transaction_id = ?',
+      'UPPER(transaction_id) = UPPER(?)',
       'LOWER(contact_email) = ?',
       'contact_phone = ?',
       'LOWER(contact_name) LIKE ?',
-      'LOWER(entity_name) LIKE ?'
+      'LOWER(entity_name) LIKE ?',
+      "LOWER(COALESCE(college_name, '')) LIKE ?",
+      "LOWER(COALESCE(department_class, '')) LIKE ?",
+      "LOWER(COALESCE(products_services, '')) LIKE ?"
     ];
     const stallParams: (string | number)[] = [
       trimmed,
       trimmed,
+      trimmed,
       lower,
       trimmed,
+      wildLower,
+      wildLower,
+      wildLower,
       wildLower,
       wildLower
     ];

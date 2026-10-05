@@ -15,10 +15,13 @@ export async function POST(req: NextRequest) {
       participants
     } = body;
 
+    const effectiveCollegeName = collegeName?.trim() || 'Bishop Heber College';
+    const effectiveCollegeLocation = collegeLocation?.trim() || 'Tiruchirappalli';
+
     // Strict validation
-    if (!eventId || !collegeName || !collegeLocation || !leaderName || !leaderEmail || !leaderPhone) {
+    if (!eventId || !leaderName || !leaderEmail || !leaderPhone) {
       return NextResponse.json(
-        { success: false, error: 'Missing required team or institution fields.' },
+        { success: false, error: 'Missing required event or primary contact fields.' },
         { status: 400 }
       );
     }
@@ -53,8 +56,8 @@ export async function POST(req: NextRequest) {
 
     const result = await createEventRegistration({
       eventId,
-      collegeName,
-      collegeLocation,
+      collegeName: effectiveCollegeName,
+      collegeLocation: effectiveCollegeLocation,
       teamName,
       leaderName,
       leaderEmail,
