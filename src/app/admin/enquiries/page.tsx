@@ -323,19 +323,24 @@ export default function AdminEnquiriesPage() {
                           {enq.status}
                         </span>
 
-                        {/* Email Dispatch Badge */}
-                        {emailDispatched ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            Dispatched to Gmail
+                        {/* Email Delivery Status Badge per Requirement 9 */}
+                        {enq.email_status === 'sent' || enq.email_dispatched === 1 ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <span>Email Delivery: ✅ Sent</span>
+                          </span>
+                        ) : enq.email_status === 'failed' ? (
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 flex items-center gap-1"
+                            title={enq.email_error || 'Outbound email delivery failed'}
+                          >
+                            <span>Email Delivery: ❌ Failed</span>
                           </span>
                         ) : (
                           <span
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
                             title={enq.email_error || 'Saved in database, outbound email pending'}
                           >
-                            <AlertCircle className="w-3 h-3 text-amber-400" />
-                            Saved in DB (Email pending)
+                            <span>Email Delivery: ⏳ Pending</span>
                           </span>
                         )}
 
@@ -356,6 +361,14 @@ export default function AdminEnquiriesPage() {
                         <a href={`mailto:${enq.email}`} className="text-sky-400 underline font-medium">
                           {enq.email}
                         </a>
+                        {enq.phone && (
+                          <>
+                            {' '}&bull; Phone:{' '}
+                            <a href={`tel:${enq.phone}`} className="text-emerald-400 font-mono font-medium hover:underline">
+                              {enq.phone}
+                            </a>
+                          </>
+                        )}
                       </p>
                     </div>
 
@@ -395,6 +408,14 @@ export default function AdminEnquiriesPage() {
                   <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
                     {enq.message}
                   </div>
+
+                  {/* Delivery Error Notice if failed */}
+                  {enq.email_status === 'failed' && enq.email_error && (
+                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[11px] flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                      <span><strong>Outbound Error:</strong> {enq.email_error}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}

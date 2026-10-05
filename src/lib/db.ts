@@ -259,9 +259,11 @@ export interface EnquiryRecord {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   subject: string;
   message: string;
   status: 'new' | 'in-progress' | 'resolved';
+  email_status?: 'sent' | 'failed' | 'pending';
   email_dispatched?: number;
   email_error?: string;
   created_at: string;
@@ -436,6 +438,8 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('payments', 'verified_by', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'verified_at', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'rejection_reason', 'TEXT');
+    await safeAddPgCol('enquiries', 'phone', 'VARCHAR(50)');
+    await safeAddPgCol('enquiries', 'email_status', "VARCHAR(50) DEFAULT 'pending'");
     await safeAddPgCol('enquiries', 'email_dispatched', 'INTEGER DEFAULT 0');
     await safeAddPgCol('enquiries', 'email_error', 'TEXT');
 
@@ -617,6 +621,8 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('payments', 'verified_by', 'TEXT');
     safeAddSqCol('payments', 'verified_at', 'TEXT');
     safeAddSqCol('payments', 'rejection_reason', 'TEXT');
+    safeAddSqCol('enquiries', 'phone', 'TEXT');
+    safeAddSqCol('enquiries', 'email_status', "TEXT NOT NULL DEFAULT 'pending'");
     safeAddSqCol('enquiries', 'email_dispatched', 'INTEGER NOT NULL DEFAULT 0');
     safeAddSqCol('enquiries', 'email_error', 'TEXT');
 
@@ -2265,24 +2271,29 @@ export async function updateSiteSettings(settings: Record<string, string>): Prom
 export async function createEnquiry(data: {
   name: string;
   email: string;
+  phone?: string;
   subject: string;
   message: string;
+  email_status?: 'sent' | 'failed' | 'pending';
   email_dispatched?: number;
   email_error?: string;
 }): Promise<EnquiryRecord> {
   await ensureSchema();
   const id = `FX-ENQ-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   const now = new Date().toISOString();
+  const emailStatus = data.email_status || (data.email_dispatched === 1 ? 'sent' : 'failed');
   await execute(`
-    INSERT INTO enquiries (id, name, email, subject, message, status, email_dispatched, email_error, created_at)
-    VALUES (?, ?, ?, ?, ?, 'new', ?, ?, ?)
+    INSERT INTO enquiries (id, name, email, phone, subject, message, status, email_status, email_dispatched, email_error, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?)
   `, [
     id,
     data.name.trim(),
     data.email.trim().toLowerCase(),
+    data.phone ? data.phone.trim() : null,
     data.subject.trim(),
     data.message.trim(),
-    data.email_dispatched ?? 0,
+    emailStatus,
+    emailStatus === 'sent' ? 1 : 0,
     data.email_error || null,
     now
   ]);
@@ -2290,10 +2301,12 @@ export async function createEnquiry(data: {
     id,
     name: data.name.trim(),
     email: data.email.trim().toLowerCase(),
+    phone: data.phone ? data.phone.trim() : undefined,
     subject: data.subject.trim(),
     message: data.message.trim(),
     status: 'new',
-    email_dispatched: data.email_dispatched ?? 0,
+    email_status: emailStatus,
+    email_dispatched: emailStatus === 'sent' ? 1 : 0,
     email_error: data.email_error,
     created_at: now
   };

@@ -20,6 +20,7 @@ export default function ContactPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('Event Registration Query');
   const [message, setMessage] = useState('');
 
@@ -32,13 +33,15 @@ export default function ContactPage() {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, subject, message })
+        body: JSON.stringify({ name, email, phone, subject, message })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to dispatch query');
+      if (!res.ok) {
+        throw new Error(data.error || "We couldn't send your enquiry right now. Please try again.");
+      }
       setSubmitted(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send query');
+      setError(err instanceof Error ? err.message : "We couldn't send your enquiry right now. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -185,14 +188,18 @@ export default function ContactPage() {
                 <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-2xl font-bold text-white">Inquiry Dispatched</h3>
+                <h3 className="text-2xl font-bold text-white">Your enquiry has been submitted successfully.</h3>
                 <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
-                  Thank you, <strong>{name}</strong>! Your inquiry regarding &ldquo;{subject}&rdquo; has been routed to the student convener desk. We will respond to <strong>{email}</strong> within 12 hours.
+                  Thank you, <strong>{name}</strong>! Your inquiry regarding &ldquo;{subject}&rdquo; has been dispatched to <strong>finxyora@gmail.com</strong> and logged in our system. Our organizing committee will respond to <strong>{email}</strong> promptly.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setSubmitted(false)}
-                  className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-500 text-white"
+                  id="send-another-enquiry-btn"
+                  onClick={() => {
+                    setSubmitted(false);
+                    setMessage('');
+                  }}
+                  className="px-6 py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white transition-colors cursor-pointer"
                 >
                   Send Another Message
                 </button>
@@ -203,12 +210,20 @@ export default function ContactPage() {
                   Submit an Inquiry
                 </h3>
 
+                {error && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label htmlFor="enquiry-name" className="block text-xs font-semibold text-slate-300 mb-1">
                       Your Full Name <span className="text-rose-400">*</span>
                     </label>
                     <input
+                      id="enquiry-name"
                       type="text"
                       required
                       value={name}
@@ -219,10 +234,11 @@ export default function ContactPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label htmlFor="enquiry-email" className="block text-xs font-semibold text-slate-300 mb-1">
                       Your Email Address <span className="text-rose-400">*</span>
                     </label>
                     <input
+                      id="enquiry-email"
                       type="email"
                       required
                       value={email}
@@ -233,44 +249,65 @@ export default function ContactPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Inquiry Category <span className="text-rose-400">*</span>
-                  </label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-slate-900"
-                  >
-                    <option value="Event Registration Query">Event Registration Query</option>
-                    <option value="Stall Booking & Facilities">Stall Booking &amp; Facilities</option>
-                    <option value="Payment Verification Issue">Payment Verification Issue</option>
-                    <option value="Stock War Accommodation">Stock War Accommodation</option>
-                    <option value="Sponsorship & Partnership">Sponsorship &amp; Partnership</option>
-                    <option value="Other Assistance">Other Assistance</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="enquiry-phone" className="block text-xs font-semibold text-slate-300 mb-1">
+                      Phone Number <span className="text-slate-400 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      id="enquiry-phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="enquiry-subject" className="block text-xs font-semibold text-slate-300 mb-1">
+                      Inquiry Category <span className="text-rose-400">*</span>
+                    </label>
+                    <select
+                      id="enquiry-subject"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs bg-slate-900 text-white"
+                    >
+                      <option value="Event Registration Query">Event Registration Query</option>
+                      <option value="Finxyora Contact Form Test">Finxyora Contact Form Test</option>
+                      <option value="Stall Booking & Facilities">Stall Booking &amp; Facilities</option>
+                      <option value="Payment Verification Issue">Payment Verification Issue</option>
+                      <option value="Stock War Accommodation">Stock War Accommodation</option>
+                      <option value="Sponsorship & Partnership">Sponsorship &amp; Partnership</option>
+                      <option value="Other Assistance">Other Assistance</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label htmlFor="enquiry-message" className="block text-xs font-semibold text-slate-300 mb-1">
                     Detailed Message <span className="text-rose-400">*</span>
                   </label>
                   <textarea
+                    id="enquiry-message"
                     required
                     rows={4}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Provide your college name, registration ID (if applicable), and query details..."
-                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all"
+                  id="submit-enquiry-btn"
+                  disabled={submitting}
+                  className="w-full py-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  <span>Transmit Inquiry</span>
+                  <span>{submitting ? 'Transmitting Enquiry...' : 'Transmit Inquiry'}</span>
                 </button>
               </form>
             )}

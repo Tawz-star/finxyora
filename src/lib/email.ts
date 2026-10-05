@@ -35,6 +35,7 @@ export interface StallEmailPayload {
 export interface QueryEmailPayload {
   name: string;
   email: string;
+  phone?: string;
   subject: string;
   message: string;
 }
@@ -336,73 +337,98 @@ FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 }
 
 export async function sendQueryEmail(data: QueryEmailPayload): Promise<EmailSendResult> {
-  const subject = `[FINXYORA 2026] Inquiry Received — ${data.subject}`;
+  const status = getEmailServiceStatus();
+  console.log(`[CONTACT] Contact enquiry received from ${data.name} <${data.email}> (Phone: ${data.phone || 'N/A'}) - Subject: "${data.subject}"`);
+  console.log(`[CONTACT] Email service called: Provider=${status.provider}, Recipient=${DESTINATION_EMAIL}`);
+
+  const subject = `[FINXYORA Enquiry] ${data.subject} — from ${data.name}`;
 
   const textBody = `
-FINXYORA 2026 — INQUIRY CONFIRMATION
+FINXYORA 2026 — NEW CONTACT ENQUIRY
 ===========================================
-Dear ${data.name},
+You have received a new contact inquiry via the Finxyora website form.
 
-Thank you for reaching out to the FINXYORA 2026 Organizing Committee.
-We have received your query regarding "${data.subject}".
+SENDER DETAILS:
+-------------------------------------------
+Name:       ${data.name}
+Email:      ${data.email}
+Phone:      ${data.phone || 'Not provided'}
+Subject:    ${data.subject}
 
-YOUR MESSAGE:
+MESSAGE:
 -------------------------------------------
 ${data.message}
 -------------------------------------------
 
-Our student convener desk will review your query and respond directly
-to this email (${data.email}) within 12 hours.
-
-For urgent assistance, please contact our Student Leadership Helpline:
-• Tawfeeq Ahmed (Vice President): +91 91599 11721
-• Sriram (President): +91 86828 79906
-
-Festival Venue: Golden Jubilee Building, Bishop Heber College, Tiruchirappalli
-Support Hours:  Monday to Saturday • 09:00 AM – 06:00 PM IST
-
-Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+Timestamp:  ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+Recipient:  ${DESTINATION_EMAIL}
+Reply-To:   ${data.email}
 ===========================================
 FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 `;
 
   const htmlBody = `
     <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 600px;">
-      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — Inquiry Received</h2>
-      <p>Dear <strong>${data.name}</strong>,</p>
-      <p>Thank you for reaching out to the FINXYORA 2026 Organizing Committee. We have received your message regarding <strong>"${data.subject}"</strong>.</p>
+      <h2 style="color: #38bdf8; margin-top: 0;">FINXYORA 2026 — New Contact Enquiry</h2>
+      <p style="color: #94a3b8; font-size: 13px;">A new enquiry was submitted through the official website contact form.</p>
       
       <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid #38bdf8; margin: 16px 0;">
-        <p style="margin-top: 0; color: #94a3b8; font-size: 12px;"><strong>YOUR SUBMITTED QUERY:</strong></p>
-        <blockquote style="background: #1e293b; padding: 12px; border-left: 4px solid #38bdf8; color: #e2e8f0; margin: 8px 0; font-style: normal; font-size: 13px; line-height: 1.6;">
-          ${data.message.replace(/\n/g, '<br/>')}
-        </blockquote>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #f1f5f9;">
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8; width: 100px;"><strong>Name:</strong></td>
+            <td style="padding: 6px 0; font-weight: bold; color: #ffffff;">${data.name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Email:</strong></td>
+            <td style="padding: 6px 0;"><a href="mailto:${data.email}" style="color: #38bdf8; text-decoration: none;">${data.email}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Phone:</strong></td>
+            <td style="padding: 6px 0; color: #4ade80; font-family: monospace; font-size: 14px;">${data.phone || 'Not provided'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Subject:</strong></td>
+            <td style="padding: 6px 0; color: #facc15; font-weight: bold;">${data.subject}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #94a3b8;"><strong>Submitted:</strong></td>
+            <td style="padding: 6px 0; color: #cbd5e1;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td>
+          </tr>
+        </table>
       </div>
 
-      <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-        Our student convener desk is reviewing your message and will respond directly to your email (<code>${data.email}</code>) within 12 hours.
+      <div style="background: #1e293b; padding: 16px; border-radius: 8px; border-left: 4px solid #38bdf8; margin: 16px 0;">
+        <p style="margin-top: 0; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;"><strong>ENQUIRY MESSAGE:</strong></p>
+        <div style="color: #f8fafc; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">
+          ${data.message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+        </div>
+      </div>
+
+      <p style="margin: 20px 0 10px 0;">
+        <a href="mailto:${data.email}?subject=${encodeURIComponent(`Re: [FINXYORA 2026] ${data.subject}`)}" style="background: #0284c7; color: #ffffff; padding: 10px 18px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+          Reply to ${data.name} &rarr;
+        </a>
       </p>
 
-      <div style="background: #1e293b; padding: 14px; border-radius: 8px; margin-top: 20px; border: 1px solid rgba(56, 189, 248, 0.2);">
-        <p style="margin: 0; font-size: 12px; font-weight: bold; color: #38bdf8;">Need Urgent Assistance? Contact Leadership Helpline:</p>
-        <p style="margin: 8px 0 0 0; font-size: 13px; color: #e2e8f0;">
-          &bull; <strong>Tawfeeq Ahmed</strong> (Vice President): <a href="tel:+919159911721" style="color: #4ade80; text-decoration: none; font-weight: bold;">+91 91599 11721</a><br/>
-          &bull; <strong>Sriram</strong> (President): <a href="tel:+918682879906" style="color: #4ade80; text-decoration: none; font-weight: bold;">+91 86828 79906</a>
-        </p>
-      </div>
-
-      <hr style="border-color: #1e293b; margin: 24px 0 16px 0;" />
+      <hr style="border-color: #1e293b; margin: 20px 0 12px 0;" />
       <p style="font-size: 11px; color: #64748b; margin: 0;">
-        FINXYORA 2026 &bull; Dept. of Commerce &bull; Bishop Heber College (Autonomous) &bull; Tiruchirappalli<br/>
-        A copy of this inquiry has been automatically archived at <code>${DESTINATION_EMAIL}</code>.
+        FINXYORA 2026 &bull; Dept. of Commerce &bull; Bishop Heber College, Tiruchirappalli<br/>
+        Delivered to <code>${DESTINATION_EMAIL}</code>. Reply-To configured as <code>${data.email}</code>.
       </p>
     </div>
   `;
 
-  // Dispatches directly to the student/inquirer's email, and CCs the festival committee at finxyora@gmail.com
-  return sendEmailNotification(subject, textBody, htmlBody, {
-    to: data.email,
-    cc: DESTINATION_EMAIL,
-    replyTo: DESTINATION_EMAIL
+  // Dispatches directly TO finxyora@gmail.com, with replyTo set to inquirer
+  const result = await sendEmailNotification(subject, textBody, htmlBody, {
+    to: DESTINATION_EMAIL,
+    replyTo: `"${data.name}" <${data.email}>`
   });
+
+  if (result.success) {
+    console.log(`[CONTACT] Email accepted: ID=${result.messageId || 'OK'} via ${result.provider}`);
+  } else {
+    console.error(`[CONTACT] Email rejected: ${result.error || 'Unknown error'}`);
+  }
+
+  return result;
 }
