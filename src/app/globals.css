@@ -129,3 +129,47 @@ body {
 .font-institutional-serif {
   font-family: 'Cinzel', 'Playfair Display', Georgia, Cambria, 'Times New Roman', serif;
 }
+
+/* ============================================================== */
+/* FINXYORA 2K26 HERO LOGO SPRING ENTRANCE ANIMATION             */
+/* ============================================================== */
+@keyframes hero-logo-spring {
+  0% {
+    opacity: 0;
+    transform: translateY(60px) scale(0.92);
+  }
+  28% {
+    opacity: 0.95;
+    transform: translateY(-9px) scale(1.03);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(4px) scale(0.99);
+  }
+  72% {
+    transform: translateY(-2px) scale(1.006);
+  }
+  88% {
+    transform: translateY(0.8px) scale(0.999);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hero-logo-spring {
+  animation: hero-logo-spring 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.1s 1 normal both;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-origin: center center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-logo-spring {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+

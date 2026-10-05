@@ -54,10 +54,18 @@ export default async function HomePage() {
             <span>Commerce Department &bull; FinTech Association Presents</span>
           </div>
 
-          {/* Main Title */}
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black tracking-tight font-sans">
-            <span className="gradient-text">FINXYORA</span>
-          </h1>
+          {/* Official FINXYORA 2K26 Hero Title / Logo */}
+          <div className="flex justify-center items-center -my-6 sm:-my-10 md:-my-14 lg:-my-16">
+            <h1 className="sr-only">FINXYORA 2K26</h1>
+            <Image
+              src="/finxyora-hero-logo.png"
+              alt="FINXYORA 2K26"
+              width={447}
+              height={559}
+              priority
+              className="hero-logo-spring w-[280px] sm:w-[360px] md:w-[420px] lg:w-[460px] max-w-[85vw] h-auto object-contain mx-auto select-none pointer-events-none"
+            />
+          </div>
 
           {/* Tagline */}
           <p className="text-xl sm:text-2xl md:text-3xl font-semibold text-sky-200/90 tracking-wide font-sans">
