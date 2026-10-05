@@ -56,8 +56,8 @@ export function getEmailServiceStatus(): {
   senderAddress: string;
 } {
   const hasResend = Boolean(process.env.RESEND_API_KEY);
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
+  const smtpPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
   const hasSmtp = Boolean(smtpUser && smtpPass);
 
   let provider: 'Resend API' | 'Gmail SMTP' | 'None' = 'None';
@@ -132,7 +132,7 @@ export async function sendEmailNotification(
   // =========================================================================
   // PROVIDER 2: GMAIL / NODEMAILER SMTP (Port 465 SSL or Port 587)
   // =========================================================================
-  const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || '').trim();
   const smtpPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
   if (smtpUser && smtpPass) {
