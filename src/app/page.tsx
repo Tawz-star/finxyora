@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Trophy,
   Store,
@@ -14,18 +15,19 @@ import {
   CheckCircle2,
   Building,
   TrendingUp,
-  Cpu
+  Cpu,
+  Award
 } from 'lucide-react';
 import CountdownTimer from '@/components/CountdownTimer';
 import EventCard from '@/components/EventCard';
 import { getAllEvents, getAllStallOptions, getSiteSettings } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
-export default function HomePage() {
-  const events = getAllEvents();
-  const stallOptions = getAllStallOptions();
-  const settings = getSiteSettings();
+export default async function HomePage() {
+  const events = await getAllEvents();
+  const stallOptions = await getAllStallOptions();
+  const settings = await getSiteSettings();
 
   const eventDates = settings.event_dates || 'November 12 & 13, 2026';
   const eventVenue = settings.event_venue || 'Golden Jubilee Building';
@@ -64,7 +66,7 @@ export default function HomePage() {
 
           {/* Event description */}
           <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
-            The premier inter-collegiate technical, management, and cultural festival. Immerse yourself in high-stakes Artificial Intelligence prompt engineering, strategic executive leadership, runway corporate choreography, FinTech quizzing, and football franchise auctions.
+            The premier intra-collegiate technical, management, and cultural festival. Immerse yourself in high-stakes Artificial Intelligence prompt engineering, strategic executive leadership, runway corporate choreography, FinTech quizzing, and football franchise auctions.
           </p>
 
           {/* Meta Details Pill (Date, Venue, Deadline) */}
@@ -155,6 +157,86 @@ export default function HomePage() {
       </section>
 
       {/* ============================================================== */}
+      {/* PRIZE & AWARDS SHOWCASE SECTION */}
+      {/* ============================================================== */}
+      <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="relative rounded-3xl glass-panel p-8 sm:p-12 border border-amber-500/30 overflow-hidden shadow-2xl">
+          {/* Ambient background glow */}
+          <div className="absolute -top-32 -left-32 w-80 h-80 bg-amber-500/15 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-sky-500/15 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Left: Text & Badges (7 cols) */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>Championship Accolades &amp; Honors</span>
+              </div>
+
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+                Grand Championship <br />
+                <span className="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 bg-clip-text text-transparent">
+                  Prizes &amp; Merit Awards
+                </span>
+              </h2>
+
+              <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-medium">
+                Exclusive Cash Rewards, Prestigious Trophies &amp; Merit Certificates for Top 3 Winners in Every Arena.
+              </p>
+
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="p-3.5 rounded-2xl glass-card border border-amber-500/20 text-center">
+                  <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono block">🥇 1st</span>
+                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Winner Cup</span>
+                </div>
+                <div className="p-3.5 rounded-2xl glass-card border border-slate-600/30 text-center">
+                  <span className="text-xl sm:text-2xl font-black text-slate-300 font-mono block">🥈 2nd</span>
+                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Runner Up</span>
+                </div>
+                <div className="p-3.5 rounded-2xl glass-card border border-amber-700/30 text-center">
+                  <span className="text-xl sm:text-2xl font-black text-amber-600 font-mono block">🥉 3rd</span>
+                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider mt-1 block">Second Runner</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-2">
+                <Link
+                  href="/events"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-sans shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Compete for the Trophy</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <span className="text-xs text-slate-400">
+                  Certificates awarded to all finalists
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Prize Image (5 cols) */}
+            <div className="lg:col-span-5 flex justify-center">
+              <div className="group relative w-full max-w-md aspect-[16/10] sm:aspect-[16/9] rounded-2xl overflow-hidden border-2 border-amber-400/40 shadow-2xl shadow-amber-500/20 bg-slate-950">
+                <Image
+                  src="/prize-showcase.jpg"
+                  alt="FINXYORA Championship Trophy and Awards"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 450px"
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute bottom-3 left-3 right-3 text-center">
+                  <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-slate-950/80 text-amber-300 border border-amber-500/30 backdrop-blur-md">
+                    FINXYORA Official Championship Trophy
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ============================================================== */}
       {/* SIX INDIVIDUAL EVENTS SECTION */}
       {/* ============================================================== */}
       <section id="events" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -162,7 +244,7 @@ export default function HomePage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20 mb-3">
               <Trophy className="w-3.5 h-3.5" />
-              Inter-Collegiate Arenas
+              Intra-Collegiate Arenas
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
               Explore All Six Flagship Events

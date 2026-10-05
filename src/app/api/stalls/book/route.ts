@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = createStallBooking({
+    const result = await createStallBooking({
       optionId,
       applicantType: applicantType === 'student' ? 'student' : 'vendor',
       entityName,
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Booking ID is required' }, { status: 400 });
     }
 
-    const booking = getStallBooking(id);
+    const booking = await getStallBooking(id);
     if (!booking) {
       return NextResponse.json({ success: false, error: 'Stall booking not found' }, { status: 404 });
     }

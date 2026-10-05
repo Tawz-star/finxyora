@@ -29,6 +29,8 @@ interface LookupEventReg {
   participant_count: number;
   total_fee: number;
   payment_status: string;
+  registration_status?: string;
+  transaction_id?: string;
   created_at: string;
   event?: { title: string };
 }
@@ -46,7 +48,9 @@ interface LookupStallBooking {
   contact_phone: string;
   stalls_requested: number;
   total_amount: number;
+  payment_status?: string;
   status: string;
+  transaction_id?: string;
   created_at: string;
 }
 
@@ -179,24 +183,38 @@ export default function LookupPage() {
 
               <div className="space-y-4">
                 {eventResults.map((reg) => {
-                  const isPaid = reg.payment_status === 'paid';
+                  const isVerifiedOrPaid = reg.payment_status === 'paid' || reg.payment_status === 'verified';
+                  const isSubmitted = reg.payment_status === 'submitted';
+                  const hasPass = isVerifiedOrPaid || isSubmitted;
+
                   return (
                     <div
                       key={reg.id}
                       className="rounded-2xl glass-card p-6 border border-sky-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
                     >
                       <div className="space-y-2">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span className="font-mono text-sm font-bold text-sky-300">
                             {reg.id}
                           </span>
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            isPaid
+                            isVerifiedOrPaid
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : isSubmitted
+                              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                               : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                           }`}>
-                            {isPaid ? 'CONFIRMED & PAID' : 'PAYMENT PENDING'}
+                            {isVerifiedOrPaid
+                              ? 'VERIFIED & CONFIRMED'
+                              : isSubmitted
+                              ? 'SUBMITTED (VERIFICATION PENDING)'
+                              : 'PAYMENT PENDING'}
                           </span>
+                          {reg.transaction_id && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              UTR: <strong className="text-amber-300">{reg.transaction_id}</strong>
+                            </span>
+                          )}
                         </div>
 
                         <h4 className="text-lg font-bold text-white">
@@ -211,12 +229,14 @@ export default function LookupPage() {
                           <span>Leader: <strong className="text-white">{reg.leader_name}</strong></span>
                           <span>&bull;</span>
                           <span>Participants: <strong className="text-white">{reg.participant_count}</strong></span>
+                          <span>&bull;</span>
+                          <span>Fee: <strong className="text-emerald-400 font-mono">₹{reg.total_fee}</strong></span>
                         </div>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                        {isPaid ? (
+                        {hasPass ? (
                           <Link
                             href={`/confirmation/${reg.id}`}
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 flex items-center gap-2 transition-all"
@@ -261,24 +281,38 @@ export default function LookupPage() {
 
               <div className="space-y-4">
                 {stallResults.map((stl) => {
-                  const isPaid = stl.status === 'paid';
+                  const isVerifiedOrPaid = stl.status === 'paid' || stl.status === 'approved';
+                  const isSubmitted = stl.status === 'submitted' || stl.payment_status === 'submitted';
+                  const hasPass = isVerifiedOrPaid || isSubmitted;
+
                   return (
                     <div
                       key={stl.id}
                       className="rounded-2xl glass-card p-6 border border-emerald-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
                     >
                       <div className="space-y-2">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span className="font-mono text-sm font-bold text-emerald-300">
                             {stl.id}
                           </span>
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            isPaid
+                            isVerifiedOrPaid
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : isSubmitted
+                              ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
                               : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                           }`}>
-                            {isPaid ? 'STALL RESERVED & PAID' : 'PAYMENT PENDING'}
+                            {isVerifiedOrPaid
+                              ? 'RESERVED & CONFIRMED'
+                              : isSubmitted
+                              ? 'SUBMITTED (VERIFICATION PENDING)'
+                              : 'PAYMENT PENDING'}
                           </span>
+                          {stl.transaction_id && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              UTR: <strong className="text-amber-300">{stl.transaction_id}</strong>
+                            </span>
+                          )}
                         </div>
 
                         <h4 className="text-lg font-bold text-white">
@@ -296,7 +330,7 @@ export default function LookupPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-3 self-end md:self-center shrink-0">
-                        {isPaid ? (
+                        {hasPass ? (
                           <Link
                             href={`/confirmation/${stl.id}`}
                             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/20 flex items-center gap-2 transition-all"

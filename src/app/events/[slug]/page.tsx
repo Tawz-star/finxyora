@@ -23,6 +23,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import PaymentModal from '@/components/PaymentModal';
+import { EventIcon } from '@/lib/event-icons';
 
 interface ParticipantFormState {
   fullName: string;
@@ -216,25 +217,6 @@ export default function SingleEventPage() {
     setIsPaymentModalOpen(true);
   };
 
-  const getEventIcon = (id: string) => {
-    switch (id) {
-      case 'prompt-perfect':
-        return <Cpu className="w-8 h-8 text-sky-400" />;
-      case 'best-manager':
-        return <Briefcase className="w-8 h-8 text-indigo-400" />;
-      case 'corporate-walk':
-        return <Sparkles className="w-8 h-8 text-amber-400" />;
-      case 'best-cfo':
-      case 'star-quas':
-        return <Trophy className="w-8 h-8 text-emerald-400" />;
-      case 'b-quiz':
-        return <HelpCircle className="w-8 h-8 text-emerald-400" />;
-      case 'football-auction':
-        return <Trophy className="w-8 h-8 text-blue-400" />;
-      default:
-        return <Trophy className="w-8 h-8 text-sky-400" />;
-    }
-  };
 
   if (loading) {
     return (
@@ -295,9 +277,12 @@ export default function SingleEventPage() {
           <div className="space-y-4 max-w-3xl">
             
             <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-slate-900/80 border border-sky-500/30 flex items-center justify-center shadow-lg">
-                {getEventIcon(event.id)}
-              </div>
+              <EventIcon
+                eventId={event.id}
+                showContainer
+                className="w-8 h-8"
+                containerClassName="w-14 h-14 rounded-2xl flex items-center justify-center bg-slate-900/80 shadow-lg"
+              />
               <div>
                 <span className="text-xs uppercase font-bold tracking-widest text-sky-400">
                   {event.category}
@@ -398,7 +383,7 @@ export default function SingleEventPage() {
           <div className="rounded-2xl glass-card p-6 border border-sky-500/20 text-xs text-slate-300 space-y-3">
             <h4 className="font-bold text-white flex items-center gap-2 text-sm">
               <Building className="w-4 h-4 text-sky-400" />
-              Inter-Collegiate Terms
+              Intra-Collegiate Terms
             </h4>
             <p className="leading-relaxed">
               &bull; Multiple teams from the same college are permitted to participate in this event.

@@ -35,6 +35,8 @@ interface EventRegistrationView {
   participant_count: number;
   total_fee: number;
   payment_status: string;
+  registration_status?: string;
+  transaction_id?: string;
   created_at: string;
   event?: {
     title: string;
@@ -67,7 +69,9 @@ interface StallBookingView {
   stalls_requested: number;
   has_electricity: number;
   total_amount: number;
+  payment_status?: string;
   status: string;
+  transaction_id?: string;
   created_at: string;
 }
 
@@ -97,13 +101,13 @@ export default function ConfirmationReceiptPage() {
     }
 
     // Determine type by reference prefix
-    const isEvent = referenceId.startsWith('FX-EVT-');
-    const isStall = referenceId.startsWith('FX-STL-');
+    const isStall = referenceId.startsWith('FIN-STL-') || referenceId.startsWith('FX-STL-');
+    const isEvent = referenceId.startsWith('FIN-') || referenceId.startsWith('FX-EVT-');
 
-    const fetchUrl = isEvent
-      ? `/api/registrations?id=${referenceId}`
-      : isStall
+    const fetchUrl = isStall
       ? `/api/stalls/book?id=${referenceId}`
+      : isEvent
+      ? `/api/registrations?id=${referenceId}`
       : `/api/lookup`;
 
     if (isEvent) {
@@ -188,7 +192,12 @@ export default function ConfirmationReceiptPage() {
   }
 
   const isEvent = !!eventReg;
-  const isPaid = isEvent ? eventReg?.payment_status === 'paid' : stallBooking?.status === 'paid';
+  const isVerifiedOrPaid = isEvent
+    ? eventReg?.payment_status === 'paid' || eventReg?.payment_status === 'verified'
+    : stallBooking?.status === 'paid' || stallBooking?.status === 'approved';
+  const isSubmitted = isEvent
+    ? eventReg?.payment_status === 'submitted'
+    : stallBooking?.status === 'submitted' || stallBooking?.payment_status === 'submitted';
 
   return (
     <div className="py-12 md:py-16 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
@@ -242,12 +251,18 @@ export default function ConfirmationReceiptPage() {
               {referenceId}
             </span>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mt-2 ${
-              isPaid
+              isVerifiedOrPaid
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : isSubmitted
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
                 : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
             }`}>
               <CheckCircle2 className="w-3.5 h-3.5" />
-              {isPaid ? 'PAYMENT VERIFIED & CONFIRMED' : 'PAYMENT PENDING / SUBMITTED'}
+              {isVerifiedOrPaid
+                ? 'PAYMENT VERIFIED & CONFIRMED'
+                : isSubmitted
+                ? 'PAYMENT SUBMITTED (VERIFICATION PENDING)'
+                : 'PAYMENT PENDING'}
             </span>
           </div>
         </div>
@@ -369,23 +384,63 @@ export default function ConfirmationReceiptPage() {
           </div>
         )}
 
-        {/* Financial Settlement Breakdown */}
-        <div className="py-8 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-          <div>
-            <span className="text-slate-400 block font-medium">Financial Transaction Settlement</span>
-            <span className="text-slate-300">
-              Gateway: <strong className="text-white">Razorpay / UPI Verified Secure</strong> &bull; Currency: <strong className="text-white">INR</strong>
+        {/* Financial Settlement Breakdown (All 7 Parameters Displayed) */}
+        <div className="py-8 border-b border-slate-800 space-y-4 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+              Payment Verification &amp; Registration Record
             </span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">
-              Settled Timestamp: {new Date(isEvent ? eventReg!.created_at : stallBooking!.created_at).toLocaleString('en-IN')}
+            <span className="text-[11px] text-slate-400">
+              Recorded: {new Date(isEvent ? eventReg!.created_at : stallBooking!.created_at).toLocaleString('en-IN')}
             </span>
           </div>
 
-          <div className="text-right">
-            <span className="text-slate-400 block font-medium">Total Amount Settled</span>
-            <span className="text-2xl font-black text-sky-300 font-mono">
-              ₹{isEvent ? eventReg?.total_fee.toFixed(2) : stallBooking?.total_amount.toFixed(2)}
-            </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Registration ID</span>
+              <span className="text-xs font-mono font-bold text-sky-300">{referenceId}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Competition / Item</span>
+              <span className="text-xs font-bold text-white truncate block">
+                {isEvent ? eventReg?.event?.title || eventReg?.event_id : stallBooking?.option_name || stallBooking?.stall_category}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Participant Count</span>
+              <span className="text-xs font-mono font-bold text-white">
+                {isEvent ? `${eventReg?.participant_count} Person(s)` : `${stallBooking?.stalls_requested} Stall(s)`}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Amount Paid</span>
+              <span className="text-base font-mono font-black text-emerald-400">
+                ₹{isEvent ? eventReg?.total_fee.toFixed(2) : stallBooking?.total_amount.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+            <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Transaction / Verification ID</span>
+              <span className="text-xs font-mono font-bold text-amber-300">
+                {isEvent ? eventReg?.transaction_id || 'Recorded On Submission' : stallBooking?.transaction_id || 'Recorded On Submission'}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Payment Status</span>
+              <span className={`text-xs font-bold uppercase ${
+                isVerifiedOrPaid ? 'text-emerald-400' : 'text-sky-300'
+              }`}>
+                {isEvent ? eventReg?.payment_status : stallBooking?.status}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80">
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Registration Status</span>
+              <span className="text-xs font-bold text-white uppercase">
+                {isEvent ? (eventReg?.registration_status || 'REGISTERED') : (stallBooking?.status || 'SUBMITTED')}
+              </span>
+            </div>
           </div>
         </div>
 

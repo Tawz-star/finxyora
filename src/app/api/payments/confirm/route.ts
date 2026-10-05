@@ -5,7 +5,7 @@ import { sendEventRegistrationEmail, sendStallBookingEmail } from '@/lib/email';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { referenceType, paymentId, registrationId, expectedAmount, utrNumber, timestamp, eventData, stallData } = body;
+    const { referenceType, paymentId, registrationId, expectedAmount, utrNumber, timestamp, isTest, eventData, stallData } = body;
 
     // Validate inputs
     if (!referenceType || !paymentId || !registrationId || expectedAmount === undefined || !utrNumber) {
@@ -23,14 +23,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Atomically save to database
-    const result = confirmClientSideRegistration({
+    // Atomically save to centralized SQL database
+    const result = await confirmClientSideRegistration({
       referenceType,
       paymentId,
       registrationId,
       expectedAmount: Number(expectedAmount),
       utrNumber: cleanUtr,
       timestamp,
+      isTest: Boolean(isTest),
       eventData,
       stallData
     });

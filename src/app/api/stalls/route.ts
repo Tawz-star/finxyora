@@ -3,7 +3,7 @@ import { getAllStallOptions } from '@/lib/db';
 
 export async function GET() {
   try {
-    const stalls = getAllStallOptions();
+    const stalls = await getAllStallOptions();
     return NextResponse.json({ success: true, stalls });
   } catch (err: unknown) {
     return NextResponse.json(

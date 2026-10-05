@@ -5,8 +5,8 @@ import { getSiteSettings } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export default function AboutFinTechPage() {
-  const settings = getSiteSettings();
+export default async function AboutFinTechPage() {
+  const settings = await getSiteSettings();
   const collegeName = settings.college_name || "Bishop Heber College";
 
   return (
@@ -66,7 +66,7 @@ export default function AboutFinTechPage() {
         <div>
           <h3 className="text-2xl font-bold text-white mb-3">Association Council &amp; Committees</h3>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            The FinTech Association operates through elected student executives, technical working groups, and faculty mentors. Every year, the council organizes international webinars, hackathons, paper presentation symposiums, and our flagship inter-collegiate festival: <strong>FINXYORA</strong>.
+            The FinTech Association operates through elected student executives, technical working groups, and faculty mentors. Every year, the council organizes international webinars, hackathons, paper presentation symposiums, and our flagship intra-collegiate festival: <strong>FINXYORA</strong>.
           </p>
         </div>
 

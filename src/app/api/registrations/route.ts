@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Please enter a valid 10-digit mobile number.' }, { status: 400 });
     }
 
-    const result = createEventRegistration({
+    const result = await createEventRegistration({
       eventId,
       collegeName,
       collegeLocation,
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Registration ID required' }, { status: 400 });
     }
 
-    const reg = getEventRegistration(id);
+    const reg = await getEventRegistration(id);
     if (!reg) {
       return NextResponse.json({ success: false, error: 'Registration not found' }, { status: 404 });
     }

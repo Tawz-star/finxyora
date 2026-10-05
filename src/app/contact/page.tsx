@@ -47,11 +47,7 @@ export default function ContactPage() {
   const faqs = [
     {
       q: 'How do I know my event registration is confirmed?',
-      a: 'Registrations are confirmed immediately once payment is verified via our secure gateway. You will receive an official Registration ID (e.g. FX-EVT-XXXXXX) and a digital pass with a verification QR code, which can also be retrieved at any time from the Lookup portal.'
-    },
-    {
-      q: 'Can multiple teams from the same college participate?',
-      a: 'Yes, colleges are encouraged to field multiple teams across all six events. However, an individual student can only be enrolled in one event that runs concurrently during the festival.'
+      a: 'Registrations are confirmed immediately once payment is verified via our secure gateway. You will receive an official Registration ID (e.g. FIN-2026-XXXX) and a digital pass with a verification QR code, which can also be retrieved at any time from the Lookup portal.'
     },
     {
       q: 'What is the refund policy if a team cannot attend?',
@@ -111,18 +107,6 @@ export default function ContactPage() {
 
               <div className="flex items-start gap-3">
                 <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 shrink-0">
-                  <Phone className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-medium">Student Help Line</span>
-                  <a href="tel:+919159911721" className="text-sm font-bold text-white hover:text-sky-300 transition-colors">
-                    9159911721 / 8682879906
-                  </a>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 shrink-0">
                   <MapPin className="w-4 h-4" />
                 </div>
                 <div>
@@ -143,6 +127,41 @@ export default function ContactPage() {
                     Monday to Saturday &bull; 09:00 AM &ndash; 06:00 PM IST
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Student Helpline Dedicated Leadership Cards */}
+            <div className="pt-4 border-t border-slate-800/80 space-y-3">
+              <span className="text-xs uppercase font-bold tracking-wider text-sky-400 flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5" />
+                Student Leadership Helpline
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                {/* Tawfeeq Ahmed — Vice President */}
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-sky-500/25 hover:border-sky-400/50 transition-colors space-y-1">
+                  <span className="text-xs font-bold text-white block">Tawfeeq Ahmed</span>
+                  <span className="text-[11px] font-semibold text-sky-300 block">Vice President</span>
+                  <a
+                    href="tel:+919159911721"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 hover:text-emerald-300 pt-1 transition-colors"
+                  >
+                    <span>📞 9159911721</span>
+                  </a>
+                </div>
+
+                {/* Sriram — President */}
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-sky-500/25 hover:border-sky-400/50 transition-colors space-y-1">
+                  <span className="text-xs font-bold text-white block">Sriram</span>
+                  <span className="text-[11px] font-semibold text-sky-300 block">President</span>
+                  <a
+                    href="tel:+918682879906"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-emerald-400 hover:text-emerald-300 pt-1 transition-colors"
+                  >
+                    <span>📞 8682879906</span>
+                  </a>
+                </div>
+
               </div>
             </div>
 
@@ -271,10 +290,10 @@ export default function ContactPage() {
           {faqs.map((faq, idx) => (
             <div key={idx} className="p-5 rounded-2xl glass-card border border-sky-500/10 space-y-2">
               <h4 className="text-sm font-bold text-white flex items-start gap-2">
-                <span className="text-sky-400 font-mono">Q.</span>
+                <span className="text-sky-400 font-mono font-bold">0{idx + 1}.</span>
                 <span>{faq.q}</span>
               </h4>
-              <p className="text-xs text-slate-300 leading-relaxed pl-5">
+              <p className="text-xs text-slate-300 leading-relaxed pl-6">
                 {faq.a}
               </p>
             </div>

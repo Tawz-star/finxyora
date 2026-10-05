@@ -3,7 +3,7 @@ import { getAllEvents } from '@/lib/db';
 
 export async function GET() {
   try {
-    const events = getAllEvents();
+    const events = await getAllEvents();
     return NextResponse.json({ success: true, events });
   } catch (err: unknown) {
     return NextResponse.json(

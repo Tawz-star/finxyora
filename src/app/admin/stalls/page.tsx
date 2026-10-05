@@ -254,10 +254,12 @@ export default function AdminStallsPage() {
               <tr className="border-b border-slate-800 text-slate-400 font-semibold">
                 <th className="pb-3">Booking ID</th>
                 <th className="pb-3">Entity / Brand</th>
-                <th className="pb-3">Applicant Type</th>
+                <th className="pb-3">Stall Category</th>
                 <th className="pb-3">Contact</th>
-                <th className="pb-3 text-center">Stalls</th>
+                <th className="pb-3 text-center">Duration</th>
                 <th className="pb-3 text-center">Amount</th>
+                <th className="pb-3 text-center">Payment</th>
+                <th className="pb-3 text-center">Transaction ID</th>
                 <th className="pb-3 text-center">Status</th>
                 <th className="pb-3 text-right">Actions</th>
               </tr>
@@ -273,20 +275,38 @@ export default function AdminStallsPage() {
                     <span className="text-[11px] text-slate-400 truncate max-w-xs block">{b.products_services}</span>
                   </td>
                   <td className="py-3">
-                    <span className="capitalize text-slate-300">{b.applicant_type}</span>
-                    {b.college_name && (
-                      <span className="text-[10px] text-slate-400 block">{b.college_name}</span>
-                    )}
+                    <span className="text-white font-medium block">{b.option_name || b.stall_category}</span>
+                    <span className="text-[10px] text-slate-400 block">{b.stalls_requested} Stall(s) &bull; {b.applicant_type}</span>
                   </td>
                   <td className="py-3">
                     <span className="text-white block font-medium">{b.contact_name}</span>
                     <span className="text-[10px] text-slate-400 block">{b.contact_phone}</span>
                   </td>
-                  <td className="py-3 text-center font-mono font-bold text-white">
-                    {b.stalls_requested}
+                  <td className="py-3 text-center">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      (b.duration_days || 1) === 2
+                        ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}>
+                      {(b.duration_days || 1) === 2 ? '2 Days' : '1 Day'}
+                    </span>
                   </td>
-                  <td className="py-3 text-center font-mono font-bold text-sky-300">
-                    ₹{b.total_amount}
+                  <td className="py-3 text-center">
+                    <span className="font-mono font-bold text-sky-300 block">₹{b.total_amount}</span>
+                  </td>
+                  <td className="py-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      b.payment_status === 'verified' || b.payment_status === 'paid'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                    }`}>
+                      {(b.payment_status || 'SUBMITTED').toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="py-3 text-center font-mono">
+                    <span className="text-amber-300 font-bold text-[11px]">
+                      {b.transaction_id || '—'}
+                    </span>
                   </td>
                   <td className="py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${

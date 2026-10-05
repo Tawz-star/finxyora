@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
 import { getDashboardMetrics, getAuditLogs } from '@/lib/db';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getAdminSession();
     if (!session) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const metrics = getDashboardMetrics();
-    const auditLogs = getAuditLogs(20);
+    const { searchParams } = new URL(req.url);
+    const filter = (searchParams.get('filter')?.toUpperCase() as 'REAL' | 'ALL' | 'TEST') || 'REAL';
+
+    const metrics = await getDashboardMetrics(filter);
+    const auditLogs = await getAuditLogs(25);
 
     return NextResponse.json({
       success: true,

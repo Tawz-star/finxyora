@@ -11,11 +11,13 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || undefined;
-    const category = searchParams.get('category') || undefined;
     const search = searchParams.get('search') || undefined;
+    const registrationType = (searchParams.get('registrationType')?.toUpperCase() as 'REAL' | 'TEST' | 'ALL') || 'ALL';
 
-    const options = getAllStallOptions();
-    const bookings = getAllStallBookings({ status, category, search });
+    const [options, bookings] = await Promise.all([
+      getAllStallOptions(),
+      getAllStallBookings({ status, registrationType, search })
+    ]);
 
     return NextResponse.json({ success: true, options, bookings });
   } catch (err: unknown) {
@@ -40,16 +42,22 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Stall Option ID required' }, { status: 400 });
     }
 
-    updateStallOption(id, {
+    await updateStallOption(id, {
       name,
       price: Number(price),
       has_electricity: has_electricity ? 1 : 0,
       description,
       total_stalls: Number(total_stalls),
       is_active: is_active ? 1 : 0
-    });
+    }, session.username);
 
-    logAuditEvent(session.username, 'UPDATE_STALL_OPTION', 'STALL_OPTION', id, `Updated price=${price}, total=${total_stalls}`);
+    await logAuditEvent(
+      session.username,
+      'UPDATE_STALL_OPTION',
+      'STALL_OPTION',
+      id,
+      `Updated price=${price}, total=${total_stalls}`
+    );
 
     return NextResponse.json({ success: true, message: 'Stall option updated' });
   } catch (err: unknown) {
@@ -74,8 +82,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Booking ID and status required' }, { status: 400 });
     }
 
-    updateStallBookingStatus(id, status, adminNotes);
-    logAuditEvent(session.username, 'UPDATE_STALL_BOOKING_STATUS', 'STALL_BOOKING', id, `Status updated to ${status}. Notes: ${adminNotes || 'None'}`);
+    await updateStallBookingStatus(id, status, session.username, adminNotes);
+    await logAuditEvent(
+      session.username,
+      'UPDATE_STALL_BOOKING_STATUS',
+      'STALL_BOOKING',
+      id,
+      `Status updated to ${status}. Notes: ${adminNotes || 'None'}`
+    );
 
     return NextResponse.json({ success: true, message: 'Stall booking updated' });
   } catch (err: unknown) {

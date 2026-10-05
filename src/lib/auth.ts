@@ -13,7 +13,7 @@ export interface AdminPayload {
   role: string;
 }
 
-export function authenticateAdmin(username: string, passwordPlain: string): { success: boolean; user?: AdminPayload; message?: string } {
+export async function authenticateAdmin(username: string, passwordPlain: string): Promise<{ success: boolean; user?: AdminPayload; message?: string }> {
   const cleanUsername = username ? username.trim().toLowerCase() : '';
   const cleanPassword = passwordPlain ? passwordPlain.trim() : '';
 
@@ -49,14 +49,8 @@ export function authenticateAdmin(username: string, passwordPlain: string): { su
   }
 
   try {
-    const db = getDb();
-    const row = db.prepare('SELECT * FROM admin_users WHERE LOWER(username) = ?').get(cleanUsername) as {
-      id: string;
-      username: string;
-      password_hash: string;
-      display_name: string;
-      role: string;
-    } | undefined;
+    const { getAdminUserByUsername } = await import('./db');
+    const row = await getAdminUserByUsername(cleanUsername);
 
     if (row && bcrypt.compareSync(cleanPassword, row.password_hash)) {
       return {
@@ -70,7 +64,7 @@ export function authenticateAdmin(username: string, passwordPlain: string): { su
       };
     }
   } catch (err) {
-    console.warn('DB admin authentication fallback triggered:', err);
+    console.warn('DB admin authentication error:', err);
   }
 
   return { success: false, message: 'Invalid username or password' };

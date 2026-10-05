@@ -9,7 +9,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const settings = getSiteSettings();
+    const settings = await getSiteSettings();
     return NextResponse.json({ success: true, settings });
   } catch (err: unknown) {
     return NextResponse.json(
@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid settings body' }, { status: 400 });
     }
 
-    updateSiteSettings(body);
-    logAuditEvent(session.username, 'UPDATE_SITE_SETTINGS', 'SYSTEM_SETTINGS', 'GLOBAL', 'Updated festival settings and credentials');
+    await updateSiteSettings(body);
+    await logAuditEvent(session.username, 'UPDATE_SITE_SETTINGS', 'SYSTEM_SETTINGS', 'GLOBAL', 'Updated festival settings and credentials');
 
     return NextResponse.json({ success: true, message: 'Settings saved successfully' });
   } catch (err: unknown) {

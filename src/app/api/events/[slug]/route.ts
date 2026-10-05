@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const event = getEventBySlug(slug);
+    const event = await getEventBySlug(slug);
     if (!event) {
       return NextResponse.json({ success: false, error: 'Event not found' }, { status: 404 });
     }

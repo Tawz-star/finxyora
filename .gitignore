@@ -54,3 +54,6 @@ stalls_page
 contact_page
 
 .vercel
+.env*
+
+.env*

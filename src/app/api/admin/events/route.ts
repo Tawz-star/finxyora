@@ -9,7 +9,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const events = getAllEvents();
+    const events = await getAllEvents();
     return NextResponse.json({ success: true, events });
   } catch (err: unknown) {
     return NextResponse.json(
@@ -33,7 +33,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Event ID required' }, { status: 400 });
     }
 
-    updateEvent(id, {
+    await updateEvent(id, {
       title,
       category,
       description,
@@ -44,9 +44,9 @@ export async function PUT(req: NextRequest) {
       fee_type: fee_type === 'per_participant' ? 'per_participant' : 'per_team',
       is_open: is_open ? 1 : 0,
       deadline
-    });
+    }, session.username);
 
-    logAuditEvent(
+    await logAuditEvent(
       session.username,
       'UPDATE_EVENT',
       'EVENT',

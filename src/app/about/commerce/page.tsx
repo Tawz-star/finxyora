@@ -5,8 +5,8 @@ import { getSiteSettings } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-export default function AboutCommercePage() {
-  const settings = getSiteSettings();
+export default async function AboutCommercePage() {
+  const settings = await getSiteSettings();
   const collegeName = settings.college_name || "Bishop Heber College";
 
   return (
@@ -88,7 +88,7 @@ export default function AboutCommercePage() {
             <Users className="w-8 h-8 text-sky-400 mx-auto" />
             <h4 className="text-base font-bold text-white">Student Leadership</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Empowering student bodies to autonomously convene inter-collegiate technical fests and social enterprises.
+              Empowering student bodies to autonomously convene intra-collegiate technical fests and social enterprises.
             </p>
           </div>
 

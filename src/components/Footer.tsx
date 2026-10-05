@@ -47,7 +47,7 @@ export default function Footer() {
             </p>
             
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              The flagship inter-collegiate festival organized by the Department of Commerce &amp; FinTech Association. Uniting sharp minds in AI, executive leadership, blockchain, financial strategy, and commercial creativity.
+              The flagship intra-collegiate festival organized by the Department of Commerce &amp; FinTech Association. Uniting sharp minds in AI, executive leadership, blockchain, financial strategy, and commercial creativity.
             </p>
 
             <div className="flex items-center gap-2 pt-2">

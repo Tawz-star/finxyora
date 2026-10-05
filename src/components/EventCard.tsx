@@ -1,32 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
-import { Users, ArrowRight, Sparkles, Shield, Cpu, Briefcase, HelpCircle, Trophy } from 'lucide-react';
+import { Users, ArrowRight } from 'lucide-react';
 import { EventRecord } from '@/lib/db';
+import { EventIcon } from '@/lib/event-icons';
 
 interface EventCardProps {
   event: EventRecord;
 }
 
 export default function EventCard({ event }: EventCardProps) {
-  const getIcon = (id: string) => {
-    switch (id) {
-      case 'prompt-perfect':
-        return <Cpu className="w-6 h-6 text-sky-400" />;
-      case 'best-manager':
-        return <Briefcase className="w-6 h-6 text-indigo-400" />;
-      case 'corporate-walk':
-        return <Sparkles className="w-6 h-6 text-amber-400" />;
-      case 'best-cfo':
-      case 'star-quas':
-        return <Shield className="w-6 h-6 text-cyan-400" />;
-      case 'b-quiz':
-        return <HelpCircle className="w-6 h-6 text-emerald-400" />;
-      case 'football-auction':
-        return <Trophy className="w-6 h-6 text-blue-400" />;
-      default:
-        return <Trophy className="w-6 h-6 text-sky-400" />;
-    }
-  };
 
   const getTeamSizeLabel = () => {
     if (event.min_participants === event.max_participants) {
@@ -43,9 +25,12 @@ export default function EventCard({ event }: EventCardProps) {
       <div>
         {/* Top Badges */}
         <div className="flex items-center justify-between gap-2 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-slate-900/80 border border-sky-500/20 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
-            {getIcon(event.id)}
-          </div>
+          <EventIcon
+            eventId={event.id}
+            showContainer
+            className="w-6 h-6"
+            containerClassName="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-900/80 shadow-inner group-hover:scale-105"
+          />
           
           <div className="flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/30">

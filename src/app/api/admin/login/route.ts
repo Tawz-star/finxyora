@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Username and password required' }, { status: 400 });
     }
 
-    const authResult = authenticateAdmin(username, password);
+    const authResult = await authenticateAdmin(username, password);
     if (!authResult.success || !authResult.user) {
       return NextResponse.json({ success: false, error: authResult.message || 'Invalid credentials' }, { status: 401 });
     }

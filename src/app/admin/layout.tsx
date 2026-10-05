@@ -14,7 +14,8 @@ import {
   LogOut,
   Download,
   FileSpreadsheet,
-  Activity
+  Activity,
+  Mail
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Stalls', href: '/admin/stalls', icon: Store },
     { label: 'Registrations', href: '/admin/registrations', icon: Users },
     { label: 'Payments', href: '/admin/payments', icon: CreditCard },
+    { label: 'Enquiries', href: '/admin/enquiries', icon: Mail },
     { label: 'Settings', href: '/admin/settings', icon: Settings },
   ];
 

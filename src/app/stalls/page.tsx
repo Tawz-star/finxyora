@@ -13,7 +13,9 @@ import {
   User,
   ShoppingBag,
   FileCheck,
-  RefreshCw
+  RefreshCw,
+  Calendar,
+  Sun
 } from 'lucide-react';
 import PaymentModal from '@/components/PaymentModal';
 
@@ -39,8 +41,8 @@ function StallRegistrationContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Selected Option
   const [selectedOptionId, setSelectedOptionId] = useState<string>(preselectedOption);
+  const [durationDays, setDurationDays] = useState<1 | 2>(1);
 
   // Form Fields
   const [applicantType, setApplicantType] = useState<'student' | 'vendor'>('student');
@@ -55,15 +57,23 @@ function StallRegistrationContent() {
   const [productsServices, setProductsServices] = useState('');
   const [stallsRequested, setStallsRequested] = useState<number>(1);
 
-  // Review & Submitting
   const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Payment Modal Trigger
-  const [pendingBooking, setPendingBooking] = useState<{
-    id: string;
-    totalAmount: number;
+  const [stallPayload, setStallPayload] = useState<{
+    optionId: string;
+    applicantType: 'student' | 'vendor';
+    entityName: string;
+    collegeName?: string;
+    departmentClass?: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    businessDetails?: string;
+    productsServices: string;
+    stallsRequested: number;
+    durationDays: number;
   } | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -79,29 +89,20 @@ function StallRegistrationContent() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    fetchStalls();
-  }, []);
+  useEffect(() => { fetchStalls(); }, []);
 
   const selectedOption = options.find((o) => o.id === selectedOptionId) || options[0];
 
-  // Auto sync applicantType when option changes
   const handleSelectOption = (optId: string) => {
     setSelectedOptionId(optId);
     const chosen = options.find((o) => o.id === optId);
     if (chosen) {
-      if (chosen.category === 'STUDENT') {
-        setApplicantType('student');
-      } else {
-        setApplicantType('vendor');
-      }
+      setApplicantType(chosen.category === 'STUDENT' ? 'student' : 'vendor');
     }
   };
 
-  const calculateTotal = (): number => {
-    if (!selectedOption) return 0;
-    return selectedOption.price * stallsRequested;
-  };
+  const pricePerDay = selectedOption?.price || 0;
+  const calculateTotal = (): number => pricePerDay * stallsRequested * durationDays;
 
   const handleProceedToReview = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,40 +112,21 @@ function StallRegistrationContent() {
       setFormError('Please fill in all mandatory fields.');
       return;
     }
-
     if (applicantType === 'student' && (!collegeName.trim() || !departmentClass.trim())) {
       setFormError('College Name and Department/Class are mandatory for student exhibitors.');
       return;
     }
-
     if (stallsRequested < 1) {
       setFormError('You must request at least 1 stall.');
       return;
     }
-
     if (selectedOption && stallsRequested > selectedOption.available_stalls) {
       setFormError(`Only ${selectedOption.available_stalls} stalls are currently available for this category.`);
       return;
     }
-
     setStep(2);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  // Client-side payload state for payment modal
-  const [stallPayload, setStallPayload] = useState<{
-    optionId: string;
-    applicantType: 'student' | 'vendor';
-    entityName: string;
-    collegeName?: string;
-    departmentClass?: string;
-    contactName: string;
-    contactEmail: string;
-    contactPhone: string;
-    businessDetails?: string;
-    productsServices: string;
-    stallsRequested: number;
-  } | null>(null);
 
   const handleFinalSubmit = () => {
     if (!selectedOption) return;
@@ -161,7 +143,8 @@ function StallRegistrationContent() {
       contactPhone,
       businessDetails: applicantType === 'vendor' ? `${businessCategory} — ${businessDetails}` : undefined,
       productsServices,
-      stallsRequested
+      stallsRequested,
+      durationDays
     };
 
     setStallPayload(payload);
@@ -181,7 +164,7 @@ function StallRegistrationContent() {
 
   return (
     <div className="py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      
+
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card border border-emerald-400/30 text-emerald-300 text-xs sm:text-sm font-medium">
@@ -194,13 +177,12 @@ function StallRegistrationContent() {
         </h1>
 
         <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-          Book dedicated exhibition space at FINXYORA 2026. Two distinct categories for Student Innovators and Outside Commercial Brands with transparent real-time inventory allocation.
+          Book dedicated exhibition space at FINXYORA 2026. Choose your stall package, select how many days you need, and pay once.
         </p>
       </div>
 
-      {/* CATEGORY & OPTION SELECTION CARDS */}
+      {/* OPTION CARDS */}
       <div className="mb-14">
-        {/* TOTAL CAPACITY ALERT BANNER */}
         <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-slate-900 to-indigo-950/80 border border-sky-400/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0">
@@ -208,17 +190,17 @@ function StallRegistrationContent() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">
-                Official Festival Stall Allocation &bull; 25 Vacancies Maximum
+                Official Festival Stall Allocation &bull; 2-Day Event
               </h3>
               <p className="text-xs text-slate-300 mt-0.5">
-                Total availability across all 3 categories combined is strictly capped at <strong className="text-white">25 stalls</strong> for both festival days.
+                All prices are <strong className="text-white">per stall per day</strong>. Choose 1 or 2 days on the booking form.
               </p>
             </div>
           </div>
           <div className="px-4 py-2 rounded-xl bg-slate-950/90 border border-sky-500/30 text-center shrink-0">
             <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Total Vacancies</span>
             <span className="text-lg font-black text-emerald-400 font-mono">
-              {options[0]?.available_stalls ?? 25} / 25 Available
+              {options.reduce((a, o) => a + (o.available_stalls || 0), 0)} Available
             </span>
           </div>
         </div>
@@ -227,10 +209,7 @@ function StallRegistrationContent() {
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <span>Step 1: Choose Your Stall Package</span>
           </h2>
-          <button
-            onClick={fetchStalls}
-            className="text-xs text-slate-400 hover:text-sky-300 flex items-center gap-1.5 transition-colors"
-          >
+          <button onClick={fetchStalls} className="text-xs text-slate-400 hover:text-sky-300 flex items-center gap-1.5 transition-colors">
             <RefreshCw className="w-3.5 h-3.5" /> Check Live Inventory
           </button>
         </div>
@@ -264,24 +243,21 @@ function StallRegistrationContent() {
                       {opt.category === 'STUDENT' ? 'Student Stall' : 'Outside Commercial'}
                     </span>
                     <span className={`text-xs font-semibold ${opt.available_stalls < 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                      {opt.available_stalls} of 25 Available
+                      {opt.available_stalls} Left
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold text-white mb-2">
-                    {opt.name}
-                  </h3>
+                  <h3 className="text-lg font-bold text-white mb-1">{opt.name}</h3>
 
-                  <div className="mb-4">
-                    <span className="text-3xl font-extrabold text-white font-mono">
-                      ₹{opt.price}
-                    </span>
-                    <span className="text-xs text-slate-400 ml-1">/ stall</span>
+                  <div className="mb-1">
+                    <span className="text-3xl font-extrabold text-white font-mono">₹{opt.price}</span>
+                    <span className="text-xs text-sky-300 ml-1 font-semibold">/ stall / day</span>
                   </div>
-
-                  <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                    {opt.description}
+                  <p className="text-[10px] text-slate-500 mb-3">
+                    1 Day: ₹{opt.price} &nbsp;|&nbsp; 2 Days: ₹{opt.price * 2} per stall
                   </p>
+
+                  <p className="text-xs text-slate-300 leading-relaxed mb-4">{opt.description}</p>
 
                   <div className="space-y-2 text-xs text-slate-300">
                     <div className="flex items-center gap-2">
@@ -293,11 +269,9 @@ function StallRegistrationContent() {
 
                 <div className="pt-4 mt-4 border-t border-slate-800/80">
                   <span className={`text-xs font-semibold block text-center py-2 rounded-xl ${
-                    isSelected
-                      ? 'bg-sky-500 text-white'
-                      : 'bg-slate-900 text-slate-300'
+                    isSelected ? 'bg-sky-500 text-white' : 'bg-slate-900 text-slate-300'
                   }`}>
-                    {isOutOfStock ? 'Sold Out' : isSelected ? 'Package Selected' : 'Select Package'}
+                    {isOutOfStock ? 'Sold Out' : isSelected ? 'Package Selected ✓' : 'Select Package'}
                   </span>
                 </div>
               </div>
@@ -308,15 +282,14 @@ function StallRegistrationContent() {
 
       {/* BOOKING FORM */}
       <div className="max-w-4xl mx-auto rounded-3xl glass-panel p-6 sm:p-10 border border-sky-500/30 shadow-2xl">
-        
-        {/* Progress header */}
+
         <div className="mb-8">
           <div className="flex items-center justify-between text-xs font-semibold mb-2">
             <span className={step === 1 ? 'text-sky-300' : 'text-slate-400'}>
-              1. Stall Application Details ({selectedOption?.name})
+              1. Application Details ({selectedOption?.name})
             </span>
             <span className={step === 2 ? 'text-sky-300' : 'text-slate-400'}>
-              2. Review &amp; Payment Verification
+              2. Review &amp; Payment
             </span>
           </div>
           <div className="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
@@ -334,10 +307,53 @@ function StallRegistrationContent() {
           </div>
         )}
 
-        {/* STEP 1: FORM INPUTS */}
+        {/* STEP 1 */}
         {step === 1 && (
           <form onSubmit={handleProceedToReview} className="space-y-8">
-            
+
+            {/* Duration Selection */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
+                <Calendar className="w-4 h-4 text-sky-400" />
+                Stall Duration
+              </h4>
+
+              <div className="grid grid-cols-2 gap-4">
+                {([1, 2] as const).map((days) => {
+                  const dayTotal = pricePerDay * stallsRequested * days;
+                  const isActiveDuration = durationDays === days;
+                  return (
+                    <button
+                      type="button"
+                      key={days}
+                      onClick={() => setDurationDays(days)}
+                      className={`rounded-2xl p-5 border text-left transition-all ${
+                        isActiveDuration
+                          ? 'border-sky-400 bg-sky-500/10 ring-1 ring-sky-400 shadow-lg shadow-sky-500/20'
+                          : 'border-slate-700 bg-slate-900/50 hover:border-sky-500/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sun className={`w-4 h-4 ${isActiveDuration ? 'text-sky-400' : 'text-slate-500'}`} />
+                        <span className="text-sm font-bold text-white">
+                          {days === 1 ? '1 Day Only' : '2 Days (Full Event)'}
+                        </span>
+                        {isActiveDuration && (
+                          <CheckCircle2 className="w-4 h-4 text-sky-400 ml-auto" />
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mb-1">
+                        ₹{pricePerDay}/stall/day × {stallsRequested} stall(s) × {days} day(s)
+                      </div>
+                      <div className="text-lg font-black text-sky-300 font-mono">
+                        ₹{dayTotal.toLocaleString('en-IN')} Total
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Applicant Details */}
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
@@ -351,9 +367,7 @@ function StallRegistrationContent() {
                     {applicantType === 'student' ? 'Student Team / Stall Brand Name' : 'Company / Business Entity Name'} <span className="text-rose-400">*</span>
                   </label>
                   <input
-                    type="text"
-                    required
-                    value={entityName}
+                    type="text" required value={entityName}
                     onChange={(e) => setEntityName(e.target.value)}
                     placeholder="e.g. ByteBites Cafe or Neon Merch"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -366,9 +380,7 @@ function StallRegistrationContent() {
                       College / Institution Name <span className="text-rose-400">*</span>
                     </label>
                     <input
-                      type="text"
-                      required
-                      value={collegeName}
+                      type="text" required value={collegeName}
                       onChange={(e) => setCollegeName(e.target.value)}
                       placeholder="e.g. St. Joseph College"
                       className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -400,9 +412,7 @@ function StallRegistrationContent() {
                     Department &amp; Class / Year <span className="text-rose-400">*</span>
                   </label>
                   <input
-                    type="text"
-                    required
-                    value={departmentClass}
+                    type="text" required value={departmentClass}
                     onChange={(e) => setDepartmentClass(e.target.value)}
                     placeholder="e.g. B.Com FinTech, 3rd Year"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -416,8 +426,7 @@ function StallRegistrationContent() {
                     GST / Business Registration / Website (Optional)
                   </label>
                   <input
-                    type="text"
-                    value={businessDetails}
+                    type="text" value={businessDetails}
                     onChange={(e) => setBusinessDetails(e.target.value)}
                     placeholder="GSTIN, CIN, or official website URL"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -426,50 +435,35 @@ function StallRegistrationContent() {
               )}
             </div>
 
-            {/* Primary Contact Person */}
+            {/* Contact Person */}
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
                 <User className="w-4 h-4 text-sky-400" />
                 Contact Representative
               </h4>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Full Name <span className="text-rose-400">*</span>
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name <span className="text-rose-400">*</span></label>
                   <input
-                    type="text"
-                    required
-                    value={contactName}
+                    type="text" required value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder="Representative Name"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Email Address <span className="text-rose-400">*</span>
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address <span className="text-rose-400">*</span></label>
                   <input
-                    type="email"
-                    required
-                    value={contactEmail}
+                    type="email" required value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
                     placeholder="contact@brand.com"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Mobile Number (WhatsApp) <span className="text-rose-400">*</span>
-                  </label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Mobile (WhatsApp) <span className="text-rose-400">*</span></label>
                   <input
-                    type="tel"
-                    required
-                    value={contactPhone}
+                    type="tel" required value={contactPhone}
                     onChange={(e) => setContactPhone(e.target.value)}
                     placeholder="10-digit Mobile"
                     className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -478,7 +472,7 @@ function StallRegistrationContent() {
               </div>
             </div>
 
-            {/* Products & Stalls Quantity */}
+            {/* Products & Stall Qty */}
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
                 <ShoppingBag className="w-4 h-4 text-sky-400" />
@@ -490,9 +484,7 @@ function StallRegistrationContent() {
                   Products or Services to be Exhibited / Sold <span className="text-rose-400">*</span>
                 </label>
                 <textarea
-                  required
-                  rows={3}
-                  value={productsServices}
+                  required rows={3} value={productsServices}
                   onChange={(e) => setProductsServices(e.target.value)}
                   placeholder="Detail items for sale, appliances to be used, or menu items..."
                   className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
@@ -511,12 +503,11 @@ function StallRegistrationContent() {
                   >
                     {[1, 2, 3, 4].map((num) => (
                       <option key={num} value={num} disabled={selectedOption && num > selectedOption.available_stalls}>
-                        {num} Stall{num > 1 ? 's' : ''} ({num * (selectedOption?.price || 0)} INR)
+                        {num} Stall{num > 1 ? 's' : ''} (₹{num * pricePerDay * durationDays}/total)
                       </option>
                     ))}
                   </select>
                 </div>
-
                 <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
                   <span className="text-slate-400 block font-medium">Included Amenities:</span>
                   <span className="text-white font-semibold">
@@ -526,13 +517,35 @@ function StallRegistrationContent() {
               </div>
             </div>
 
-            {/* Total & Action */}
+            {/* Pricing Summary */}
+            <div className="rounded-2xl bg-blue-950/40 border border-sky-500/30 p-5 space-y-3">
+              <h4 className="text-xs font-bold text-sky-300 uppercase tracking-wider">💰 Live Price Breakdown</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Stall Category</span>
+                  <span className="text-white font-bold text-[11px] leading-tight">{selectedOption?.name}</span>
+                </div>
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Duration</span>
+                  <span className="text-white font-bold">{durationDays} Day{durationDays > 1 ? 's' : ''}</span>
+                </div>
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Per Day</span>
+                  <span className="text-white font-bold font-mono">₹{pricePerDay} × {stallsRequested}</span>
+                </div>
+                <div className="bg-sky-500/15 rounded-xl p-3 border border-sky-500/30">
+                  <span className="text-sky-300 block mb-0.5 font-semibold">Total Amount</span>
+                  <span className="text-sky-200 font-black font-mono text-lg">₹{calculateTotal().toLocaleString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
             <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-4">
               <div>
                 <span className="text-[11px] text-slate-400 block">Total Stall Fee</span>
-                <span className="text-2xl font-black text-sky-300 font-mono">₹{calculateTotal()}</span>
+                <span className="text-2xl font-black text-sky-300 font-mono">₹{calculateTotal().toLocaleString('en-IN')}</span>
+                <span className="text-[10px] text-slate-500 block">{stallsRequested} stall(s) × ₹{pricePerDay}/day × {durationDays} day(s)</span>
               </div>
-
               <button
                 type="submit"
                 className="px-8 py-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
@@ -541,11 +554,10 @@ function StallRegistrationContent() {
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-
           </form>
         )}
 
-        {/* STEP 2: REVIEW SUMMARY */}
+        {/* STEP 2: REVIEW */}
         {step === 2 && (
           <div className="space-y-6">
             <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-xs text-sky-200 flex items-start gap-2.5">
@@ -588,24 +600,38 @@ function StallRegistrationContent() {
                   <span className="text-white font-semibold">{stallsRequested} Stall(s)</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Electricity Included:</span>
+                  <span className="text-slate-400 block">Electricity:</span>
                   <span className="text-emerald-400 font-semibold">{selectedOption?.has_electricity ? 'Yes (Socket Provided)' : 'No'}</span>
                 </div>
               </div>
             </div>
 
-            {/* Price Box */}
-            <div className="p-5 rounded-2xl bg-blue-950/40 border border-sky-500/30 flex items-center justify-between">
-              <div>
-                <span className="text-xs text-slate-300 block font-medium">Pricing Calculation</span>
-                <span className="text-xs text-slate-400">
-                  {stallsRequested} stall(s) × ₹{selectedOption?.price}
-                </span>
+            {/* Price Breakdown Box */}
+            <div className="p-5 rounded-2xl bg-blue-950/40 border border-sky-500/30 space-y-3">
+              <h4 className="text-xs font-bold text-sky-300 uppercase tracking-wider">Payment Summary</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Stall Category</span>
+                  <span className="text-white font-bold text-[11px] leading-tight">{selectedOption?.name}</span>
+                </div>
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Duration</span>
+                  <span className="text-white font-bold">
+                    {durationDays === 1 ? '1 Day' : '2 Days (Full Event)'}
+                  </span>
+                </div>
+                <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+                  <span className="text-slate-400 block mb-0.5">Price Per Day</span>
+                  <span className="text-white font-bold font-mono">₹{pricePerDay} × {stallsRequested}</span>
+                </div>
+                <div className="bg-sky-500/15 rounded-xl p-3 border border-sky-500/30">
+                  <span className="text-sky-300 block mb-0.5 font-semibold">Total Due</span>
+                  <span className="text-sky-200 font-black font-mono text-xl">₹{calculateTotal().toLocaleString('en-IN')}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-400 block">Total Due</span>
-                <span className="text-2xl font-black text-sky-300 font-mono">₹{calculateTotal()}</span>
-              </div>
+              <p className="text-[11px] text-slate-400">
+                Calculation: ₹{pricePerDay}/stall/day × {stallsRequested} stall(s) × {durationDays} day(s) = <strong className="text-white">₹{calculateTotal().toLocaleString('en-IN')}</strong>
+              </p>
             </div>
 
             <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-800">
@@ -617,7 +643,6 @@ function StallRegistrationContent() {
               >
                 Back to Edit
               </button>
-
               <button
                 type="button"
                 onClick={handleFinalSubmit}
@@ -632,15 +657,13 @@ function StallRegistrationContent() {
                 ) : (
                   <>
                     <CreditCard className="w-4 h-4" />
-                    <span>Proceed to Secure Payment</span>
+                    <span>Proceed to Secure Payment — ₹{calculateTotal().toLocaleString('en-IN')}</span>
                   </>
                 )}
               </button>
             </div>
-
           </div>
         )}
-
       </div>
 
       {/* Payment Modal */}
@@ -650,7 +673,7 @@ function StallRegistrationContent() {
           onClose={() => setIsPaymentModalOpen(false)}
           referenceType="stall"
           amount={calculateTotal()}
-          itemTitle={`${selectedOption.name} (${stallsRequested} Stall)`}
+          itemTitle={`${selectedOption.name} — ${durationDays} Day${durationDays > 1 ? 's' : ''} (${stallsRequested} Stall${stallsRequested > 1 ? 's' : ''})`}
           payerEmail={contactEmail}
           payerPhone={contactPhone}
           stallData={stallPayload}
@@ -660,7 +683,6 @@ function StallRegistrationContent() {
           }}
         />
       )}
-
     </div>
   );
 }

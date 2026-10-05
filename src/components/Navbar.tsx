@@ -148,7 +148,7 @@ export default function Navbar() {
                 FINXYORA
               </span>
               <span className="text-[9px] uppercase tracking-widest text-sky-400 font-semibold -mt-0.5">
-                Inter-Collegiate Fest 2026
+                Intra-Collegiate Fest 2026
               </span>
             </div>
           </Link>

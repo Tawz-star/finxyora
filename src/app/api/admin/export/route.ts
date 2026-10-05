@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
-import { getAllEventRegistrations, getEventRegistration, getAllStallBookings } from '@/lib/db';
+import { getAllEventRegistrations, getEventRegistration, getAllStallBookings, EventRegistrationRecord, StallBookingRecord } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type') || 'events';
 
     if (type === 'events') {
-      const registrations = getAllEventRegistrations();
-      const enriched = registrations.map(r => getEventRegistration(r.id)).filter(Boolean);
+      const registrations = await getAllEventRegistrations({ registrationType: 'ALL' });
+      const enriched = await Promise.all(registrations.map((r: EventRegistrationRecord) => getEventRegistration(r.id)));
+      const filtered = enriched.filter(Boolean) as NonNullable<Awaited<ReturnType<typeof getEventRegistration>>>[];
 
       const headers = [
         'Registration ID',
+        'Registration Type',
         'Event ID',
         'Event Title',
         'College Name',
@@ -29,29 +31,34 @@ export async function GET(req: NextRequest) {
         'Participant Count',
         'Total Fee (INR)',
         'Payment Status',
+        'Registration Status',
+        'UTR / Transaction ID',
         'Registered Date',
         'Participants Summary'
       ];
 
-      const rows = enriched.map(reg => {
-        const partsSummary = (reg?.participants || [])
-          .map((p, idx) => `P${idx + 1}: ${p.full_name} (${p.roll_number}, ${p.department})`)
+      const rows = filtered.map((reg) => {
+        const partsSummary = (reg.participants || [])
+          .map((p, idx: number) => `P${idx + 1}: ${p.full_name} (${p.roll_number}, ${p.department})`)
           .join(' | ');
 
         return [
-          reg?.id,
-          reg?.event_id,
-          reg?.event?.title || '',
-          `"${(reg?.college_name || '').replace(/"/g, '""')}"`,
-          `"${(reg?.college_location || '').replace(/"/g, '""')}"`,
-          `"${(reg?.team_name || '').replace(/"/g, '""')}"`,
-          `"${(reg?.leader_name || '').replace(/"/g, '""')}"`,
-          reg?.leader_email,
-          reg?.leader_phone,
-          reg?.participant_count,
-          reg?.total_fee,
-          reg?.payment_status,
-          reg?.created_at,
+          reg.id,
+          reg.registration_type,
+          reg.event_id,
+          reg.event?.title || '',
+          `"${(reg.college_name || '').replace(/"/g, '""')}"`,
+          `"${(reg.college_location || '').replace(/"/g, '""')}"`,
+          `"${(reg.team_name || '').replace(/"/g, '""')}"`,
+          `"${(reg.leader_name || '').replace(/"/g, '""')}"`,
+          reg.leader_email,
+          reg.leader_phone,
+          reg.participant_count,
+          reg.total_fee,
+          reg.payment_status,
+          reg.registration_status,
+          reg.transaction_id || '',
+          reg.created_at,
           `"${partsSummary.replace(/"/g, '""')}"`
         ].join(',');
       });
@@ -63,10 +70,13 @@ export async function GET(req: NextRequest) {
           'Content-Disposition': `attachment; filename="FINXYORA_Event_Registrations_${new Date().toISOString().slice(0, 10)}.csv"`
         }
       });
-    } else if (type === 'stalls') {
-      const bookings = getAllStallBookings();
+    }
+
+    if (type === 'stalls') {
+      const bookings: StallBookingRecord[] = await getAllStallBookings({ registrationType: 'ALL' });
       const headers = [
         'Booking ID',
+        'Registration Type',
         'Option ID',
         'Stall Category',
         'Applicant Type',
@@ -79,13 +89,16 @@ export async function GET(req: NextRequest) {
         'Stalls Requested',
         'Electricity Included',
         'Total Amount (INR)',
-        'Status',
+        'Payment Status',
+        'Booking Status',
+        'UTR / Transaction ID',
         'Admin Notes',
         'Created At'
       ];
 
-      const rows = bookings.map(b => [
+      const rows = bookings.map((b: StallBookingRecord) => [
         b.id,
+        b.registration_type,
         b.option_id,
         b.stall_category,
         b.applicant_type,
@@ -98,7 +111,9 @@ export async function GET(req: NextRequest) {
         b.stalls_requested,
         b.has_electricity ? 'YES' : 'NO',
         b.total_amount,
+        b.payment_status,
         b.status,
+        b.transaction_id || '',
         `"${(b.admin_notes || '').replace(/"/g, '""')}"`,
         b.created_at
       ].join(','));
