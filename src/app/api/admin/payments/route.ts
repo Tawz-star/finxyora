@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       if (!paymentId) {
         return NextResponse.json({ success: false, error: 'Payment ID is required' }, { status: 400 });
       }
-      await verifyPayment(paymentId, session.username);
-      return NextResponse.json({ success: true, message: 'Payment manually verified and registration confirmed.' });
+      await verifyPayment(paymentId, session.username, body.notes);
+      return NextResponse.json({ success: true, message: 'Payment manually verified against bank records and registration confirmed.' });
     }
 
     if (action === 'reject') {

@@ -19,7 +19,8 @@ import {
   Search,
   AlertCircle,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw
 } from 'lucide-react';
 
 interface EventRegistrationView {
@@ -89,6 +90,35 @@ export default function RegistrationDetailsView({
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [eventReg, setEventReg] = useState<EventRegistrationView | null>(null);
   const [stallBooking, setStallBooking] = useState<StallBookingView | null>(null);
+  const [checkingLiveStatus, setCheckingLiveStatus] = useState(false);
+  const [liveStatusNote, setLiveStatusNote] = useState<string | null>(null);
+
+  const handleRefreshLiveStatus = async () => {
+    if (!referenceId) return;
+    setCheckingLiveStatus(true);
+    setLiveStatusNote(null);
+    try {
+      const res = await fetch(`/api/payments/verify?registrationId=${encodeURIComponent(referenceId)}`);
+      const data = await res.json();
+      if (data.status) {
+        if (data.isVerified || data.status === 'PAID') {
+          if (eventReg) {
+            setEventReg({ ...eventReg, payment_status: 'PAID', registration_status: 'confirmed' });
+          }
+          if (stallBooking) {
+            setStallBooking({ ...stallBooking, payment_status: 'PAID', status: 'approved' });
+          }
+          setLiveStatusNote('Payment verified and confirmed!');
+        } else {
+          setLiveStatusNote(data.message || `Status: ${data.status}`);
+        }
+      }
+    } catch {
+      setLiveStatusNote('Status check failed. Please try again.');
+    } finally {
+      setCheckingLiveStatus(false);
+    }
+  };
 
   useEffect(() => {
     if (!referenceId) return;
@@ -322,12 +352,12 @@ export default function RegistrationDetailsView({
   }
 
   const isEvent = !!eventReg;
-  const isVerifiedOrPaid = isEvent
-    ? eventReg?.payment_status === 'paid' || eventReg?.payment_status === 'verified'
-    : stallBooking?.status === 'paid' || stallBooking?.status === 'approved';
-  const isSubmitted = isEvent
-    ? eventReg?.payment_status === 'submitted'
-    : stallBooking?.status === 'submitted' || stallBooking?.payment_status === 'submitted';
+  const rawStatus = isEvent
+    ? String(eventReg?.payment_status || '').toUpperCase()
+    : String(stallBooking?.payment_status || stallBooking?.status || '').toUpperCase();
+  const isVerifiedOrPaid = rawStatus === 'PAID' || rawStatus === 'VERIFIED' || rawStatus === 'SUCCESSFUL' || rawStatus === 'APPROVED';
+  const isReviewRequired = rawStatus === 'REVIEW_REQUIRED' || rawStatus === 'SUBMITTED' || rawStatus === 'PENDING_REVIEW';
+  const isPending = !isVerifiedOrPaid && !isReviewRequired;
 
   const numericFee = isEvent
     ? Number(eventReg?.total_fee || 0)
@@ -371,6 +401,33 @@ export default function RegistrationDetailsView({
         </div>
       </div>
 
+      {/* Review Required Notice Banner */}
+      {isReviewRequired && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 no-print">
+          <div className="flex items-center gap-2.5">
+            <Clock className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>
+              Payment received or submitted for verification. Your registration will be confirmed after payment verification against bank records.
+            </span>
+          </div>
+          <button
+            onClick={handleRefreshLiveStatus}
+            disabled={checkingLiveStatus}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold text-[11px] shrink-0 flex items-center gap-1.5 transition-all"
+          >
+            <RefreshCw className={`w-3 h-3 ${checkingLiveStatus ? 'animate-spin' : ''}`} />
+            Check Live Status
+          </button>
+        </div>
+      )}
+
+      {liveStatusNote && (
+        <div className="mb-6 p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs flex items-center gap-2 no-print">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{liveStatusNote}</span>
+        </div>
+      )}
+
       {/* PRINTABLE RECEIPT / DETAILS CARD */}
       <div className="relative rounded-3xl glass-panel p-8 sm:p-12 border border-sky-500/30 shadow-2xl overflow-hidden print:border-none print:shadow-none print:p-0">
         
@@ -399,14 +456,14 @@ export default function RegistrationDetailsView({
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mt-2 ${
               isVerifiedOrPaid
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                : isSubmitted
-                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : isReviewRequired
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'bg-slate-700/50 text-slate-300 border border-slate-600'
             }`}>
-              <CheckCircle2 className="w-3.5 h-3.5" />
+              {isVerifiedOrPaid ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
               {isVerifiedOrPaid
                 ? 'PAYMENT VERIFIED & CONFIRMED'
-                : isSubmitted
+                : isReviewRequired
                 ? 'PAYMENT SUBMITTED (VERIFICATION PENDING)'
                 : 'PAYMENT PENDING'}
             </span>

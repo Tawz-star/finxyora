@@ -192,8 +192,8 @@ export default function LookupPage() {
 
               <div className="space-y-4">
                 {eventResults.map((reg) => {
-                  const isVerifiedOrPaid = reg.payment_status === 'paid' || reg.payment_status === 'verified';
-                  const isSubmitted = reg.payment_status === 'submitted';
+                  const isVerifiedOrPaid = reg.payment_status === 'paid' || reg.payment_status === 'verified' || reg.payment_status === 'PAID';
+                  const isSubmitted = reg.payment_status === 'submitted' || reg.payment_status === 'REVIEW_REQUIRED';
                   const hasPass = isVerifiedOrPaid || isSubmitted;
 
                   return (
@@ -289,8 +289,8 @@ export default function LookupPage() {
 
               <div className="space-y-4">
                 {stallResults.map((stl) => {
-                  const isVerifiedOrPaid = stl.status === 'paid' || stl.status === 'approved';
-                  const isSubmitted = stl.status === 'submitted' || stl.payment_status === 'submitted';
+                  const isVerifiedOrPaid = stl.status === 'paid' || stl.status === 'approved' || stl.payment_status === 'PAID';
+                  const isSubmitted = stl.status === 'submitted' || stl.payment_status === 'submitted' || stl.payment_status === 'REVIEW_REQUIRED';
                   const hasPass = isVerifiedOrPaid || isSubmitted;
 
                   return (

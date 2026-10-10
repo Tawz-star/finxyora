@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldCheck,
   AlertCircle,
@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   IndianRupee,
   Zap,
-  Clock
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 
 export interface EventRegistrationPayload {
@@ -66,7 +67,7 @@ interface PaymentModalProps {
 const MERCHANT_VPA = 's.venkatesanraja@okaxis';
 const MERCHANT_NAME = 'S.venkatesan';
 
-// Build dynamic UPI payment URL with exact amount pre-filled
+// Dynamic fallback builder if server pre-creation is offline
 function buildUpiUrl(amount: number, refId: string): string {
   const note = encodeURIComponent(`FINXYORA 2026 - ${refId}`);
   const vpa = encodeURIComponent(MERCHANT_VPA);
@@ -75,18 +76,17 @@ function buildUpiUrl(amount: number, refId: string): string {
   return `upi://pay?pa=${vpa}&pn=${name}&am=${amount.toFixed(2)}&cu=INR&tn=${note}&tr=${ref}`;
 }
 
-// Generate QR code image URL via qrserver.com API (free, no install)
 function buildQrImageUrl(upiUrl: string, size = 280): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=M&margin=10&data=${encodeURIComponent(upiUrl)}`;
 }
 
-type PaymentStep = 'scan' | 'enter_utr' | 'submitting' | 'success';
+type PaymentStep = 'loading_order' | 'scan' | 'enter_utr' | 'submitting' | 'review_required' | 'verified_success';
 
 export default function PaymentModal({
   isOpen,
   onClose,
   referenceType,
-  amount,
+  amount: initialAmount,
   itemTitle,
   payerEmail,
   payerPhone,
@@ -97,38 +97,86 @@ export default function PaymentModal({
 }: PaymentModalProps) {
   const [paymentIntentId, setPaymentIntentId] = useState<string>('');
   const [registrationId, setRegistrationId] = useState<string>('');
+  const [serverAmount, setServerAmount] = useState<number>(initialAmount);
   const [upiUrl, setUpiUrl] = useState<string>('');
   const [qrImageUrl, setQrImageUrl] = useState<string>('');
   const [utrNumber, setUtrNumber] = useState<string>('');
-  const [step, setStep] = useState<PaymentStep>('scan');
+  const [step, setStep] = useState<PaymentStep>('loading_order');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusCheckMessage, setStatusCheckMessage] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
   const utrInputRef = useRef<HTMLInputElement>(null);
 
+  // Initialize server-side payment order on open
   useEffect(() => {
     if (!isOpen) return;
 
-    setStep('scan');
+    setStep('loading_order');
     setErrorMessage(null);
+    setStatusCheckMessage(null);
     setUtrNumber('');
     setQrLoaded(false);
     setQrError(false);
 
-    const now = Date.now();
-    const hex = Math.random().toString(16).substring(2, 8).toUpperCase();
-    const intentId = `FX-PAY-${now}-${hex}`;
-    const regId = initialReferenceId || (referenceType === 'event' ? `FX-EVT-${now}` : `FX-STL-${now}`);
+    let isMounted = true;
 
-    setPaymentIntentId(intentId);
-    setRegistrationId(regId);
+    // Contact backend to validate and create order
+    fetch('/api/payments/create-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        referenceType,
+        eventData,
+        stallData,
+        registrationId: initialReferenceId
+      })
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to initialize payment order on server.');
+        return data;
+      })
+      .then((order) => {
+        if (!isMounted) return;
+        setRegistrationId(order.registrationId);
+        setPaymentIntentId(order.paymentId);
+        setServerAmount(Number(order.amount || initialAmount));
+        setUpiUrl(order.upiUrl);
+        setQrImageUrl(order.qrImageUrl);
 
-    const upi = buildUpiUrl(amount, intentId);
-    setUpiUrl(upi);
-    setQrImageUrl(buildQrImageUrl(upi));
-  }, [isOpen, amount, referenceType, initialReferenceId]);
+        if (order.status === 'PAID') {
+          setStep('verified_success');
+        } else if (order.status === 'REVIEW_REQUIRED') {
+          setStep('review_required');
+        } else {
+          setStep('scan');
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.warn('Server order pre-creation failed, using direct client parameters:', err);
+        // Resilient fallback
+        const now = Date.now();
+        const fallbackReg = initialReferenceId || (referenceType === 'event' ? `FIN-EVT-${now}` : `FIN-STL-${now}`);
+        const fallbackPay = `PAY-${fallbackReg}-${now.toString().slice(-6)}`;
+        setRegistrationId(fallbackReg);
+        setPaymentIntentId(fallbackPay);
+        setServerAmount(initialAmount);
+
+        const upi = buildUpiUrl(initialAmount, fallbackPay);
+        setUpiUrl(upi);
+        setQrImageUrl(buildQrImageUrl(upi));
+        setStep('scan');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, referenceType, eventData, stallData, initialReferenceId, initialAmount]);
 
   // Focus UTR input when step changes to enter_utr
   useEffect(() => {
@@ -136,8 +184,6 @@ export default function PaymentModal({
       setTimeout(() => utrInputRef.current?.focus(), 100);
     }
   }, [step]);
-
-  if (!isOpen) return null;
 
   const copyToClipboard = (text: string, type: 'upi' | 'amount') => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -150,6 +196,7 @@ export default function PaymentModal({
     }
   };
 
+  // Submit 12-digit UTR reference
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -160,7 +207,7 @@ export default function PaymentModal({
       return;
     }
     if (cleanUtr.length < 6) {
-      setErrorMessage('UTR must be at least 6 characters (usually a 12-digit number).');
+      setErrorMessage('UTR must be at least 6 characters (typically a 12-digit bank reference number).');
       return;
     }
 
@@ -174,7 +221,7 @@ export default function PaymentModal({
           referenceType,
           paymentId: paymentIntentId,
           registrationId,
-          expectedAmount: amount,
+          expectedAmount: serverAmount,
           utrNumber: cleanUtr,
           timestamp: Date.now(),
           eventData,
@@ -185,15 +232,51 @@ export default function PaymentModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Payment confirmation failed');
 
-      setStep('success');
-      setTimeout(() => {
-        onPaymentSuccess(data.redirectUrl || `/confirmation/${data.registrationId || registrationId}`);
-      }, 2000);
+      // Authentic verification rule:
+      // Direct UPI is recorded as REVIEW_REQUIRED, not fabricated auto-success!
+      if (data.status === 'PAID') {
+        setStep('verified_success');
+        setTimeout(() => {
+          onPaymentSuccess(data.redirectUrl || `/confirmation/${registrationId}`);
+        }, 2000);
+      } else {
+        setStep('review_required');
+      }
     } catch (err: unknown) {
       setStep('enter_utr');
       setErrorMessage(err instanceof Error ? err.message : 'Confirmation error. Please try again.');
     }
   };
+
+  // Manual status check query
+  const handleCheckStatus = useCallback(async () => {
+    if (!paymentIntentId && !registrationId) return;
+    setCheckingStatus(true);
+    setStatusCheckMessage(null);
+
+    try {
+      const idToQuery = paymentIntentId || registrationId;
+      const res = await fetch(`/api/payments/verify?paymentId=${encodeURIComponent(idToQuery)}`);
+      const data = await res.json();
+
+      if (data.isVerified || data.status === 'PAID') {
+        setStep('verified_success');
+        setTimeout(() => {
+          onPaymentSuccess(`/confirmation/${registrationId}`);
+        }, 1500);
+      } else if (data.status === 'REVIEW_REQUIRED') {
+        setStatusCheckMessage('Your UTR is currently queued for manual reconciliation against bank statements. Spot confirmed upon verification.');
+      } else {
+        setStatusCheckMessage(data.message || 'Payment status: ' + data.status);
+      }
+    } catch {
+      setStatusCheckMessage('Unable to connect to status endpoint right now. Please try again.');
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, [paymentIntentId, registrationId, onPaymentSuccess]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fadeIn overflow-y-auto">
@@ -205,7 +288,7 @@ export default function PaymentModal({
         <div className="p-6 sm:p-8">
 
           {/* Close */}
-          {step !== 'submitting' && step !== 'success' && (
+          {step !== 'submitting' && (
             <button
               onClick={onClose}
               className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-slate-800/80 transition-colors"
@@ -215,29 +298,49 @@ export default function PaymentModal({
             </button>
           )}
 
+          {/* ─── STEP: LOADING ORDER ─── */}
+          {step === 'loading_order' && (
+            <div className="py-12 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Generating Payment Order...</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Validating fee rules &amp; reserving spot in Central SQL Database
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ─── STEP: SCAN ─── */}
           {step === 'scan' && (
             <div className="space-y-5">
               <div className="text-center">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-bold mb-3">
                   <Zap className="w-3 h-3" />
-                  UPI Payment — Exact Amount Pre-filled
+                  Direct UPI Payment — Exact Amount Pre-filled
                 </div>
                 <h3 className="text-xl font-black text-white">Scan &amp; Pay</h3>
                 <p className="text-xs text-slate-400 mt-1">Open GPay, PhonePe, Paytm or BHIM and scan below</p>
               </div>
 
-              {/* Amount badge */}
+              {/* Amount badge with server-calculated verification */}
               <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-sky-950/80 to-blue-950/60 border border-sky-500/30">
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                    {referenceType === 'event' ? 'Event Registration Fee' : 'Stall Booking Fee'}
+                    {referenceType === 'event' ? 'Event Fee (₹50 / Participant)' : 'Stall Booking Package'}
                   </span>
                   <span className="text-xs text-slate-300 line-clamp-1 mt-0.5">{itemTitle}</span>
+                  {registrationId && (
+                    <span className="text-[10px] text-sky-300 font-mono font-bold block mt-1">
+                      ID: {registrationId}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">Pay Exactly</span>
-                  <span className="text-2xl font-black text-emerald-400 font-mono">₹{amount.toFixed(2)}</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">₹{serverAmount.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -247,7 +350,7 @@ export default function PaymentModal({
                   {!qrLoaded && !qrError && (
                     <div className="w-[240px] h-[240px] flex flex-col items-center justify-center gap-2">
                       <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-[10px] text-slate-500 font-mono">Generating QR...</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Rendering QR...</span>
                     </div>
                   )}
 
@@ -256,16 +359,18 @@ export default function PaymentModal({
                       <QrCode className="w-10 h-10 text-slate-400" />
                       <p className="text-xs text-slate-600">QR unavailable offline.<br />Use UPI ID below to pay manually.</p>
                       <button
-                        onClick={() => { setQrError(false); setQrLoaded(false); setQrImageUrl(buildQrImageUrl(buildUpiUrl(amount, paymentIntentId))); }}
+                        onClick={() => { setQrError(false); setQrLoaded(false); setQrImageUrl(buildQrImageUrl(upiUrl)); }}
                         className="text-[11px] text-sky-500 underline"
-                      >Retry</button>
+                      >
+                        Retry
+                      </button>
                     </div>
                   )}
 
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrImageUrl}
-                    alt={`UPI QR Code — Pay ₹${amount} to FINXYORA 2026`}
+                    alt={`UPI QR Code — Pay ₹${serverAmount} to FINXYORA 2026`}
                     width={240}
                     height={240}
                     className={`rounded-lg object-contain transition-opacity ${qrLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
@@ -273,18 +378,18 @@ export default function PaymentModal({
                     onError={() => setQrError(true)}
                   />
 
-                  {/* Amount watermark on QR */}
+                  {/* Watermark on QR */}
                   {qrLoaded && (
                     <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-lg whitespace-nowrap">
-                      ₹{amount.toFixed(2)} — {MERCHANT_NAME}
+                      ₹{serverAmount.toFixed(2)} — {MERCHANT_NAME}
                     </div>
                   )}
                 </div>
 
-                {/* Merchant */}
+                {/* Merchant Information */}
                 <div className="mt-3 text-center">
                   <span className="text-xs text-white font-bold">{MERCHANT_NAME}</span>
-                  <span className="text-[11px] text-slate-400 block">UPI: {MERCHANT_VPA}</span>
+                  <span className="text-[11px] text-slate-400 block font-mono">UPI: {MERCHANT_VPA}</span>
                 </div>
 
                 {/* Quick copy row */}
@@ -297,7 +402,7 @@ export default function PaymentModal({
                     Copy UPI ID
                   </button>
                   <button
-                    onClick={() => copyToClipboard(amount.toFixed(2), 'amount')}
+                    onClick={() => copyToClipboard(serverAmount.toFixed(2), 'amount')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
                   >
                     {copiedAmount ? <Check className="w-3 h-3 text-emerald-400" /> : <IndianRupee className="w-3 h-3" />}
@@ -312,30 +417,30 @@ export default function PaymentModal({
                   </a>
                 </div>
 
-                {/* Mobile open button — prominent on phones */}
+                {/* Mobile direct tap button */}
                 <a
                   href={upiUrl}
                   className="sm:hidden w-full mt-1 py-3 rounded-2xl text-sm font-bold bg-gradient-to-r from-green-600 to-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
                 >
                   <Smartphone className="w-4 h-4" />
-                  Tap to Pay ₹{amount.toFixed(2)} in UPI App
+                  Tap to Pay ₹{serverAmount.toFixed(2)} in UPI App
                 </a>
               </div>
 
-              {/* Instruction steps */}
+              {/* Step instructions */}
               <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-2">
                 <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">How to pay:</p>
                 {[
                   'Scan QR with GPay, PhonePe, Paytm or BHIM',
-                  `Pay exactly ₹${amount.toFixed(2)} — amount is pre-filled`,
+                  `Pay exactly ₹${serverAmount.toFixed(2)} — amount is pre-filled`,
                   'Complete the payment in your UPI app',
-                  'Come back here and click the button below'
-                ].map((step, i) => (
+                  'Return here and enter the 12-digit UPI Transaction ID (UTR)'
+                ].map((s, i) => (
                   <div key={i} className="flex items-start gap-2.5 text-[11px] text-slate-400">
                     <span className="w-4 h-4 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
                       {i + 1}
                     </span>
-                    {step}
+                    {s}
                   </div>
                 ))}
               </div>
@@ -348,8 +453,8 @@ export default function PaymentModal({
                 I Have Paid — Enter Transaction ID
               </button>
 
-              <p className="text-[10px] text-slate-500 text-center">
-                Ref: <span className="font-mono">{paymentIntentId}</span>
+              <p className="text-[10px] text-slate-500 text-center font-mono">
+                Order Ref: {paymentIntentId || registrationId}
               </p>
             </div>
           )}
@@ -363,14 +468,17 @@ export default function PaymentModal({
                 </div>
                 <h3 className="text-xl font-black text-white">Enter Transaction ID</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Open your GPay / PhonePe receipt and copy the <strong className="text-white">UPI Transaction ID</strong> (UTR)
+                  Open your UPI payment receipt and enter the <strong className="text-white">12-Digit Reference / UTR Number</strong>
                 </p>
               </div>
 
               {/* Amount reminder */}
               <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
-                <span className="text-xs text-emerald-300 font-semibold">Amount paid:</span>
-                <span className="text-lg font-black text-emerald-400 font-mono">₹{amount.toFixed(2)}</span>
+                <div>
+                  <span className="text-xs text-emerald-300 font-semibold block">Expected Amount:</span>
+                  <span className="text-[10px] text-slate-400 font-mono">ID: {registrationId}</span>
+                </div>
+                <span className="text-lg font-black text-emerald-400 font-mono">₹{serverAmount.toFixed(2)}</span>
               </div>
 
               {errorMessage && (
@@ -392,33 +500,40 @@ export default function PaymentModal({
                     required
                     value={utrNumber}
                     onChange={(e) => setUtrNumber(e.target.value)}
-                    placeholder="e.g. 528394819203 (12-digit Bank Ref)"
+                    placeholder="e.g. 528394819203 (12-digit UTR)"
                     className="w-full px-4 py-3.5 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
                     autoComplete="off"
                     inputMode="text"
                   />
                   <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-                    Found in your UPI app payment receipt → &quot;Transaction ID&quot; or &quot;UTR&quot; or &quot;Bank Ref No.&quot;
+                    Found in your UPI app receipt → &quot;UPI Ref No.&quot; or &quot;UTR&quot; or &quot;Transaction ID&quot;.
                   </p>
                 </div>
 
-                {/* Where to find UTR — visual guide */}
+                {/* Where to find UTR visual card */}
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60 space-y-1.5">
                   <p className="text-[11px] font-bold text-slate-300">Where to find your UTR:</p>
                   <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-400">
                     <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
                       <span className="text-green-400 font-bold block">GPay</span>
-                      Payment receipt → Transaction ID
+                      UPI Transaction ID
                     </div>
                     <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
                       <span className="text-purple-400 font-bold block">PhonePe</span>
-                      History → Transaction ID
+                      UTR Number
                     </div>
                     <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
                       <span className="text-sky-400 font-bold block">Paytm</span>
-                      Passbook → UTR No.
+                      UPI Ref No.
                     </div>
                   </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+                  <p>
+                    Submitted UTR references are logged in the central SQL ledger and reconciled against our bank records before registration confirmation.
+                  </p>
                 </div>
 
                 <div className="flex gap-3">
@@ -434,14 +549,10 @@ export default function PaymentModal({
                     className="flex-1 py-3 rounded-xl text-sm font-black bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all"
                   >
                     <ShieldCheck className="w-5 h-5" />
-                    Confirm &amp; Register
+                    Submit For Verification
                   </button>
                 </div>
               </form>
-
-              <p className="text-[10px] text-slate-500 text-center">
-                Paying to: <span className="font-mono text-slate-400">{MERCHANT_VPA}</span> &bull; Ref: <span className="font-mono">{paymentIntentId}</span>
-              </p>
             </div>
           )}
 
@@ -452,50 +563,120 @@ export default function PaymentModal({
                 <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Submitting Registration...</h3>
-                <p className="text-xs text-slate-400 mt-1">Saving to FINXYORA Central Database</p>
+                <h3 className="text-lg font-bold text-white">Recording Payment Reference...</h3>
+                <p className="text-xs text-slate-400 mt-1">Connecting to Central FINXYORA Database</p>
               </div>
             </div>
           )}
 
-          {/* ─── STEP: SUCCESS ─── */}
-          {step === 'success' && (
-            <div className="py-10 flex flex-col items-center justify-center gap-5 text-center">
-              <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-                </div>
-                <div className="absolute inset-0 rounded-full bg-emerald-400/10 animate-ping" />
+          {/* ─── STEP: REVIEW REQUIRED (ACCURATE DIRECT UPI FLOW) ─── */}
+          {step === 'review_required' && (
+            <div className="py-6 flex flex-col items-center justify-center gap-5 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                <Clock className="w-8 h-8 text-amber-400" />
               </div>
 
               <div>
-                <h3 className="text-2xl font-black text-white">Registration Submitted!</h3>
-                <p className="text-xs text-slate-400 mt-2 leading-relaxed max-w-xs mx-auto">
-                  Your payment has been recorded. Our team will verify the transaction and confirm your spot.
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold mb-2">
+                  <Clock className="w-3 h-3" />
+                  STATUS: REVIEW REQUIRED (Verification Pending)
+                </div>
+                <h3 className="text-xl font-black text-white">Payment Submitted for Verification</h3>
+                <p className="text-xs text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">
+                  Payment received or submitted for verification. Your registration will be confirmed after payment verification against bank records.
                 </p>
               </div>
 
-              <div className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-2 text-left">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Amount Paid</span>
-                  <span className="text-emerald-400 font-black font-mono">₹{amount.toFixed(2)}</span>
+              <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Registration ID</span>
+                  <span className="text-sky-300 font-mono font-bold">{registrationId}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">UTR Submitted</span>
-                  <span className="text-white font-mono font-bold">{utrNumber}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Amount Due</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Confirmation Email</span>
-                  <span className="text-sky-300 font-semibold truncate max-w-[55%]">{payerEmail}</span>
+                {utrNumber && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Submitted UTR</span>
+                    <span className="text-amber-300 font-mono font-bold">{utrNumber}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Payee Account</span>
+                  <span className="text-white font-medium">{MERCHANT_NAME} ({MERCHANT_VPA})</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/25 rounded-xl px-4 py-2.5">
-                <Clock className="w-4 h-4 shrink-0" />
-                <span>Confirmation may take a few hours. Check your email.</span>
+              {statusCheckMessage && (
+                <div className="w-full p-3 rounded-xl bg-sky-950/60 border border-sky-500/30 text-sky-300 text-xs text-left flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{statusCheckMessage}</span>
+                </div>
+              )}
+
+              <div className="w-full space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCheckStatus}
+                  disabled={checkingStatus}
+                  className="w-full py-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingStatus ? 'animate-spin' : ''}`} />
+                  {checkingStatus ? 'Checking Verification Ledger...' : 'Check Payment Status'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    window.location.href = `/confirmation/${registrationId}`;
+                  }}
+                  className="w-full py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20"
+                >
+                  <span>View Official Registration Pass</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── STEP: VERIFIED SUCCESS ─── */}
+          {step === 'verified_success' && (
+            <div className="py-8 flex flex-col items-center justify-center gap-5 text-center">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
               </div>
 
-              <p className="text-[10px] text-slate-500">Redirecting to your confirmation page...</p>
+              <div>
+                <h3 className="text-2xl font-black text-white">Payment Verified!</h3>
+                <p className="text-xs text-emerald-300 font-semibold mt-1">Registration Confirmed</p>
+                <p className="text-xs text-slate-400 mt-2 max-w-xs mx-auto">
+                  Your payment has been authoritatively verified in the central ledger. Your participation pass is ready.
+                </p>
+              </div>
+
+              <div className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Registration ID</span>
+                  <span className="text-white font-mono font-bold">{registrationId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Verified Amount</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onPaymentSuccess(`/confirmation/${registrationId}`);
+                }}
+                className="w-full py-3.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all"
+              >
+                <span>Proceed to Confirmation Pass</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           )}
 

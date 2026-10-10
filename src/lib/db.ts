@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
+import { DIRECT_UPI_CONFIG, buildDynamicUpiUrl, buildQrCodeImageUrl, getPaymentGatewayInfo } from './payment-gateway';
 
 // =============================================================
 // DATABASE ENGINE CONFIGURATION
@@ -221,6 +222,31 @@ export interface StallBookingRecord {
   option_name?: string;
 }
 
+export type PaymentStatus =
+  | 'PENDING'
+  | 'VERIFYING'
+  | 'PAID'
+  | 'FAILED'
+  | 'EXPIRED'
+  | 'REVIEW_REQUIRED'
+  | 'pending'
+  | 'submitted'
+  | 'verified'
+  | 'rejected'
+  | 'successful'
+  | 'failed'
+  | 'refunded';
+
+export function normalizePaymentStatus(status?: string | null): 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED' {
+  const s = String(status || '').toUpperCase();
+  if (s === 'PAID' || s === 'VERIFIED' || s === 'SUCCESSFUL' || s === 'CONFIRMED' || s === 'APPROVED') return 'PAID';
+  if (s === 'REVIEW_REQUIRED' || s === 'SUBMITTED' || s === 'PENDING_REVIEW') return 'REVIEW_REQUIRED';
+  if (s === 'VERIFYING') return 'VERIFYING';
+  if (s === 'FAILED' || s === 'REJECTED' || s === 'CANCELLED') return 'FAILED';
+  if (s === 'EXPIRED') return 'EXPIRED';
+  return 'PENDING';
+}
+
 export interface PaymentRecord {
   id: string;
   reference_type: 'event' | 'stall';
@@ -230,7 +256,7 @@ export interface PaymentRecord {
   gateway_signature?: string;
   amount: number;
   currency: string;
-  status: 'pending' | 'submitted' | 'verified' | 'rejected' | 'successful' | 'failed' | 'refunded';
+  status: PaymentStatus;
   payer_email?: string;
   payer_phone?: string;
   payment_method: string;
@@ -240,6 +266,11 @@ export interface PaymentRecord {
   verified_at?: string;
   verified_by?: string;
   rejection_reason?: string;
+  user_reference?: string;
+  provider_reference?: string;
+  verified_amount?: number;
+  review_notes?: string;
+  verification_method?: string;
   item_title?: string;
   participant_count?: number;
 }
@@ -438,6 +469,11 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('payments', 'verified_by', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'verified_at', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'rejection_reason', 'TEXT');
+    await safeAddPgCol('payments', 'user_reference', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'provider_reference', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'verified_amount', 'NUMERIC(10,2)');
+    await safeAddPgCol('payments', 'review_notes', 'TEXT');
+    await safeAddPgCol('payments', 'verification_method', 'VARCHAR(50)');
     await safeAddPgCol('enquiries', 'phone', 'VARCHAR(50)');
     await safeAddPgCol('enquiries', 'email_status', "VARCHAR(50) DEFAULT 'pending'");
     await safeAddPgCol('enquiries', 'email_dispatched', 'INTEGER DEFAULT 0');
@@ -451,6 +487,7 @@ async function initAllSchemas(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_pg_parts_reg ON participants(registration_id);
         CREATE INDEX IF NOT EXISTS idx_pg_pay_ref ON payments(reference_id);
         CREATE INDEX IF NOT EXISTS idx_pg_pay_utr ON payments(gateway_payment_id);
+        CREATE INDEX IF NOT EXISTS idx_pg_pay_usr_ref ON payments(user_reference);
       `);
     } catch {
       // Ignored
@@ -621,6 +658,11 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('payments', 'verified_by', 'TEXT');
     safeAddSqCol('payments', 'verified_at', 'TEXT');
     safeAddSqCol('payments', 'rejection_reason', 'TEXT');
+    safeAddSqCol('payments', 'user_reference', 'TEXT');
+    safeAddSqCol('payments', 'provider_reference', 'TEXT');
+    safeAddSqCol('payments', 'verified_amount', 'REAL');
+    safeAddSqCol('payments', 'review_notes', 'TEXT');
+    safeAddSqCol('payments', 'verification_method', 'TEXT');
     safeAddSqCol('enquiries', 'phone', 'TEXT');
     safeAddSqCol('enquiries', 'email_status', "TEXT NOT NULL DEFAULT 'pending'");
     safeAddSqCol('enquiries', 'email_dispatched', 'INTEGER NOT NULL DEFAULT 0');
@@ -634,6 +676,7 @@ async function initAllSchemas(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_sq_parts_reg ON participants(registration_id);
         CREATE INDEX IF NOT EXISTS idx_sq_pay_ref ON payments(reference_id);
         CREATE INDEX IF NOT EXISTS idx_sq_pay_utr ON payments(gateway_payment_id);
+        CREATE INDEX IF NOT EXISTS idx_sq_pay_usr_ref ON payments(user_reference);
       `);
     } catch {
       // Ignored
@@ -1066,6 +1109,568 @@ export interface ClientRegistrationPayload {
   };
 }
 
+export interface CreatePaymentOrderParams {
+  referenceType: 'event' | 'stall';
+  registrationId?: string;
+  isTest?: boolean;
+  eventData?: {
+    eventId: string;
+    collegeName?: string;
+    collegeLocation?: string;
+    teamName?: string;
+    leaderName: string;
+    leaderEmail: string;
+    leaderPhone: string;
+    participants: Array<{
+      fullName: string;
+      rollNumber: string;
+      department: string;
+      yearOfStudy: string;
+      section: string;
+    }>;
+  };
+  stallData?: {
+    optionId: string;
+    applicantType: 'student' | 'vendor';
+    entityName: string;
+    collegeName?: string;
+    departmentClass?: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    businessDetails?: string;
+    productsServices: string;
+    stallsRequested: number;
+    durationDays: number;
+  };
+}
+
+export interface PaymentOrderResult {
+  success: boolean;
+  registrationId: string;
+  paymentId: string;
+  referenceType: 'event' | 'stall';
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'REVIEW_REQUIRED' | 'PAID';
+  upiUrl: string;
+  qrImageUrl: string;
+  merchantVpa: string;
+  merchantName: string;
+  itemTitle: string;
+  provider: 'DIRECT_UPI' | 'RAZORPAY';
+  isGatewayAvailable: boolean;
+}
+
+export async function createPaymentOrder(params: CreatePaymentOrderParams): Promise<PaymentOrderResult> {
+  await ensureSchema();
+  const isTest = Boolean(params.isTest);
+  const regType: 'REAL' | 'TEST' = isTest ? 'TEST' : 'REAL';
+  const now = new Date().toISOString();
+  const gatewayInfo = getPaymentGatewayInfo();
+
+  if (params.referenceType === 'event') {
+    if (!params.eventData) throw new Error('Missing event registration data');
+    const { eventId, collegeName, collegeLocation, teamName, leaderName, leaderEmail, leaderPhone, participants } = params.eventData;
+
+    const event = await getEventBySlug(eventId);
+    if (!event) throw new Error(`Competition not found: ${eventId}`);
+
+    const participantCount = participants?.length || 0;
+    if (participantCount < event.min_participants || participantCount > event.max_participants) {
+      throw new Error(`Participant limit error: ${event.title} requires between ${event.min_participants} and ${event.max_participants} participant(s). Provided: ${participantCount}.`);
+    }
+
+    // MANDATORY BACKEND ENFORCEMENT: ₹50 PER PARTICIPANT
+    const calculatedFee = 50 * participantCount;
+
+    const regId = params.registrationId && params.registrationId.startsWith('FIN-')
+      ? params.registrationId
+      : await generateRegistrationId(isTest);
+
+    const payId = `PAY-${regId}-${Date.now().toString().slice(-6)}`;
+    const orderRef = `ORD-${regId}`;
+
+    // Check if registration already exists in SQL
+    const existingReg = await queryOne<EventRegistrationRecord>(
+      'SELECT id, payment_status FROM event_registrations WHERE id = ?',
+      [regId]
+    );
+
+    if (!existingReg) {
+      await execute(`
+        INSERT INTO event_registrations (
+          id, event_id, college_name, college_location, team_name,
+          leader_name, leader_email, leader_phone, participant_count,
+          total_fee, payment_status, registration_status, registration_type,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'registered', ?, ?, ?)
+      `, [
+        regId,
+        event.id,
+        collegeName?.trim() || 'Bishop Heber College',
+        collegeLocation?.trim() || 'Tiruchirappalli',
+        teamName?.trim() || null,
+        leaderName.trim(),
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        participantCount,
+        calculatedFee,
+        regType,
+        now,
+        now
+      ]);
+
+      for (let idx = 0; idx < participants.length; idx++) {
+        const p = participants[idx];
+        const partId = `PART-${regId}-${idx + 1}`;
+        await execute(`
+          INSERT INTO participants (
+            id, registration_id, full_name, roll_number, department, year_of_study, section, participant_order
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          partId,
+          regId,
+          p.fullName.trim(),
+          p.rollNumber.trim(),
+          p.department.trim(),
+          p.yearOfStudy.trim(),
+          p.section.trim(),
+          idx + 1
+        ]);
+      }
+    }
+
+    // Pre-insert pending payment record if not exists
+    const existingPay = await queryOne<PaymentRecord>(
+      'SELECT id, status, amount FROM payments WHERE reference_id = ?',
+      [regId]
+    );
+
+    let activePaymentId = payId;
+    let paymentStatus: 'PENDING' | 'REVIEW_REQUIRED' | 'PAID' = 'PENDING';
+
+    if (!existingPay) {
+      await execute(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, amount,
+          currency, status, payer_email, payer_phone, payment_method,
+          idempotency_key, registration_type, created_at, verification_method
+        ) VALUES (?, 'event', ?, ?, ?, 'INR', 'pending', ?, ?, 'UPI', ?, ?, ?, ?)
+      `, [
+        payId,
+        regId,
+        orderRef,
+        calculatedFee,
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        payId,
+        regType,
+        now,
+        gatewayInfo.isConfigured ? 'GATEWAY' : 'DIRECT_UPI_REVIEW'
+      ]);
+    } else {
+      activePaymentId = existingPay.id;
+      paymentStatus = normalizePaymentStatus(existingPay.status) as any;
+    }
+
+    const upiUrl = buildDynamicUpiUrl({
+      amount: calculatedFee,
+      referenceId: orderRef
+    });
+    const qrImageUrl = buildQrCodeImageUrl(upiUrl);
+
+    return {
+      success: true,
+      registrationId: regId,
+      paymentId: activePaymentId,
+      referenceType: 'event',
+      amount: calculatedFee,
+      currency: 'INR',
+      status: paymentStatus,
+      upiUrl,
+      qrImageUrl,
+      merchantVpa: DIRECT_UPI_CONFIG.vpa,
+      merchantName: DIRECT_UPI_CONFIG.payeeName,
+      itemTitle: event.title,
+      provider: gatewayInfo.provider,
+      isGatewayAvailable: gatewayInfo.isConfigured
+    };
+  } else {
+    // STALL ORDER CREATION
+    if (!params.stallData) throw new Error('Missing stall booking data');
+    const { optionId, applicantType, entityName, collegeName, departmentClass, contactName, contactEmail, contactPhone, businessDetails, productsServices, stallsRequested, durationDays } = params.stallData;
+
+    const opt = await queryOne<StallOptionRecord>('SELECT * FROM stall_options WHERE id = ?', [optionId]);
+    if (!opt) throw new Error('Stall option not found');
+
+    const validDays = (durationDays === 2) ? 2 : 1;
+    const validStalls = Math.max(1, Math.min(10, Number(stallsRequested) || 1));
+    const totalAmount = opt.price * validStalls * validDays;
+
+    const bookingId = params.registrationId && params.registrationId.startsWith('FIN-')
+      ? params.registrationId
+      : await generateStallBookingId(isTest);
+
+    const payId = `PAY-${bookingId}-${Date.now().toString().slice(-6)}`;
+    const orderRef = `ORD-${bookingId}`;
+
+    const existingBooking = await queryOne<StallBookingRecord>(
+      'SELECT id, payment_status, status FROM stall_bookings WHERE id = ?',
+      [bookingId]
+    );
+
+    if (!existingBooking) {
+      await execute(`
+        INSERT INTO stall_bookings (
+          id, option_id, stall_category, applicant_type, entity_name, college_name,
+          department_class, contact_name, contact_email, contact_phone, business_details,
+          products_services, stalls_requested, duration_days, has_electricity, total_amount, payment_status,
+          status, registration_type, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?)
+      `, [
+        bookingId,
+        opt.id,
+        opt.category,
+        applicantType,
+        entityName.trim(),
+        collegeName?.trim() || null,
+        departmentClass?.trim() || null,
+        contactName.trim(),
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        businessDetails?.trim() || null,
+        productsServices.trim(),
+        validStalls,
+        validDays,
+        opt.has_electricity,
+        totalAmount,
+        regType,
+        now,
+        now
+      ]);
+    }
+
+    const existingPay = await queryOne<PaymentRecord>(
+      'SELECT id, status FROM payments WHERE reference_id = ?',
+      [bookingId]
+    );
+
+    let activePaymentId = payId;
+    let paymentStatus: 'PENDING' | 'REVIEW_REQUIRED' | 'PAID' = 'PENDING';
+
+    if (!existingPay) {
+      await execute(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, amount,
+          currency, status, payer_email, payer_phone, payment_method,
+          idempotency_key, registration_type, created_at, verification_method
+        ) VALUES (?, 'stall', ?, ?, ?, 'INR', 'pending', ?, ?, 'UPI', ?, ?, ?, ?)
+      `, [
+        payId,
+        bookingId,
+        orderRef,
+        totalAmount,
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        payId,
+        regType,
+        now,
+        gatewayInfo.isConfigured ? 'GATEWAY' : 'DIRECT_UPI_REVIEW'
+      ]);
+    } else {
+      activePaymentId = existingPay.id;
+      paymentStatus = normalizePaymentStatus(existingPay.status) as any;
+    }
+
+    const upiUrl = buildDynamicUpiUrl({
+      amount: totalAmount,
+      referenceId: orderRef
+    });
+    const qrImageUrl = buildQrCodeImageUrl(upiUrl);
+
+    return {
+      success: true,
+      registrationId: bookingId,
+      paymentId: activePaymentId,
+      referenceType: 'stall',
+      amount: totalAmount,
+      currency: 'INR',
+      status: paymentStatus,
+      upiUrl,
+      qrImageUrl,
+      merchantVpa: DIRECT_UPI_CONFIG.vpa,
+      merchantName: DIRECT_UPI_CONFIG.payeeName,
+      itemTitle: opt.name,
+      provider: gatewayInfo.provider,
+      isGatewayAvailable: gatewayInfo.isConfigured
+    };
+  }
+}
+
+export async function submitPaymentUtr(payload: {
+  paymentId?: string;
+  registrationId: string;
+  referenceType?: 'event' | 'stall';
+  utrNumber: string;
+  isTest?: boolean;
+}): Promise<{
+  success: boolean;
+  registrationId: string;
+  paymentId: string;
+  status: 'REVIEW_REQUIRED';
+  amount: number;
+  utrNumber: string;
+  message: string;
+  redirectUrl: string;
+}> {
+  await ensureSchema();
+  const cleanUtr = String(payload.utrNumber || '').trim().replace(/\s/g, '');
+  if (!cleanUtr || cleanUtr.length < 6) {
+    throw new Error('Invalid UPI Reference / UTR Number. Must be at least 6 digits/characters from your payment receipt.');
+  }
+
+  const isTest = Boolean(payload.isTest);
+  const now = new Date().toISOString();
+
+  // Prevent duplicate UTR submissions for REAL registrations
+  if (!isTest) {
+    const existingTx = await queryOne<PaymentRecord>(
+      `SELECT id, reference_id FROM payments 
+       WHERE (gateway_payment_id = ? OR user_reference = ?) 
+         AND registration_type = 'REAL' 
+         AND reference_id != ?`,
+      [cleanUtr, cleanUtr, payload.registrationId]
+    );
+    if (existingTx) {
+      throw new Error(`This UPI Reference / UTR Number (${cleanUtr}) has already been submitted for registration ${existingTx.reference_id}. Duplicate payment claims are not permitted.`);
+    }
+  }
+
+  // Find payment record
+  let pay = await queryOne<PaymentRecord>(
+    'SELECT * FROM payments WHERE reference_id = ? OR id = ?',
+    [payload.registrationId, payload.paymentId || '']
+  );
+
+  if (!pay) {
+    // Check registration records to create payment entry if missing
+    const evt = await queryOne<EventRegistrationRecord>('SELECT * FROM event_registrations WHERE id = ?', [payload.registrationId]);
+    if (evt) {
+      const payId = `PAY-${evt.id}-${Date.now().toString().slice(-6)}`;
+      await execute(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+          amount, currency, status, payer_email, payer_phone, payment_method,
+          user_reference, registration_type, created_at, verification_method
+        ) VALUES (?, 'event', ?, ?, ?, ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW')
+      `, [
+        payId,
+        evt.id,
+        `ORD-${evt.id}`,
+        cleanUtr,
+        evt.total_fee,
+        evt.leader_email,
+        evt.leader_phone,
+        cleanUtr,
+        evt.registration_type,
+        now
+      ]);
+      pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [payId]);
+    } else {
+      const stl = await queryOne<StallBookingRecord>('SELECT * FROM stall_bookings WHERE id = ?', [payload.registrationId]);
+      if (stl) {
+        const payId = `PAY-${stl.id}-${Date.now().toString().slice(-6)}`;
+        await execute(`
+          INSERT INTO payments (
+            id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+            amount, currency, status, payer_email, payer_phone, payment_method,
+            user_reference, registration_type, created_at, verification_method
+          ) VALUES (?, 'stall', ?, ?, ?, ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW')
+        `, [
+          payId,
+          stl.id,
+          `ORD-${stl.id}`,
+          cleanUtr,
+          stl.total_amount,
+          stl.contact_email,
+          stl.contact_phone,
+          cleanUtr,
+          stl.registration_type,
+          now
+        ]);
+        pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [payId]);
+      }
+    }
+  }
+
+  if (!pay) {
+    throw new Error(`Registration record not found for ID: ${payload.registrationId}`);
+  }
+
+  // Update payment status to REVIEW_REQUIRED
+  await execute(`
+    UPDATE payments SET
+      gateway_payment_id = ?,
+      user_reference = ?,
+      status = 'REVIEW_REQUIRED',
+      verification_method = 'DIRECT_UPI_REVIEW'
+    WHERE id = ?
+  `, [cleanUtr, cleanUtr, pay.id]);
+
+  // Update registration record
+  if (pay.reference_type === 'event') {
+    await execute(`
+      UPDATE event_registrations SET
+        payment_status = 'REVIEW_REQUIRED',
+        transaction_id = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [cleanUtr, now, pay.reference_id]);
+  } else {
+    await execute(`
+      UPDATE stall_bookings SET
+        payment_status = 'REVIEW_REQUIRED',
+        transaction_id = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [cleanUtr, now, pay.reference_id]);
+  }
+
+  await logAuditEvent(
+    'CLIENT_UPI_SUBMISSION',
+    'UTR_SUBMITTED_FOR_REVIEW',
+    'PAYMENT',
+    pay.id,
+    `Direct UPI UTR (${cleanUtr}) submitted for registration ${pay.reference_id}. Awaiting manual reconciliation by festival staff.`
+  );
+
+  return {
+    success: true,
+    registrationId: pay.reference_id,
+    paymentId: pay.id,
+    status: 'REVIEW_REQUIRED',
+    amount: pay.amount,
+    utrNumber: cleanUtr,
+    message: 'Payment submitted for verification. Your registration will be confirmed after payment verification.',
+    redirectUrl: `/confirmation/${pay.reference_id}`
+  };
+}
+
+export async function getPaymentStatus(queryId: string): Promise<{
+  success: boolean;
+  found: boolean;
+  status: 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED';
+  rawStatus: string;
+  isVerified: boolean;
+  registrationId: string;
+  paymentId?: string;
+  amount: number;
+  utrNumber?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  rejectionReason?: string;
+  message: string;
+  itemTitle?: string;
+  referenceType?: 'event' | 'stall';
+}> {
+  await ensureSchema();
+  const trimmed = queryId.trim();
+
+  const pay = await queryOne<PaymentRecord>(
+    `SELECT * FROM payments 
+     WHERE id = ? OR reference_id = ? OR gateway_payment_id = ? OR user_reference = ?
+     ORDER BY created_at DESC`,
+    [trimmed, trimmed, trimmed, trimmed]
+  );
+
+  if (pay) {
+    const norm = normalizePaymentStatus(pay.status);
+    let msg = 'Payment has not been confirmed.';
+    if (norm === 'PAID') {
+      msg = 'Payment authoritatively verified — Registration confirmed!';
+    } else if (norm === 'REVIEW_REQUIRED') {
+      msg = 'Payment submitted for verification. Your registration will be confirmed after payment verification.';
+    } else if (norm === 'VERIFYING') {
+      msg = 'Verification in progress with payment provider.';
+    } else if (norm === 'FAILED') {
+      msg = pay.rejection_reason ? `Payment rejected: ${pay.rejection_reason}` : 'Payment failed or was rejected.';
+    }
+
+    return {
+      success: true,
+      found: true,
+      status: norm,
+      rawStatus: pay.status,
+      isVerified: norm === 'PAID',
+      registrationId: pay.reference_id,
+      paymentId: pay.id,
+      amount: Number(pay.amount || 0),
+      utrNumber: pay.gateway_payment_id || pay.user_reference || undefined,
+      verifiedAt: pay.verified_at || undefined,
+      verifiedBy: pay.verified_by || undefined,
+      rejectionReason: pay.rejection_reason || undefined,
+      message: msg,
+      referenceType: pay.reference_type
+    };
+  }
+
+  // Fallback: check event_registrations directly
+  const evt = await queryOne<EventRegistrationRecord>('SELECT * FROM event_registrations WHERE id = ?', [trimmed]);
+  if (evt) {
+    const norm = normalizePaymentStatus(evt.payment_status);
+    return {
+      success: true,
+      found: true,
+      status: norm,
+      rawStatus: evt.payment_status,
+      isVerified: norm === 'PAID',
+      registrationId: evt.id,
+      amount: Number(evt.total_fee || 0),
+      utrNumber: evt.transaction_id || undefined,
+      message: norm === 'PAID'
+        ? 'Payment verified — Registration confirmed!'
+        : norm === 'REVIEW_REQUIRED'
+        ? 'Payment submitted for verification. Your registration will be confirmed after payment verification.'
+        : 'Payment pending.',
+      referenceType: 'event'
+    };
+  }
+
+  // Fallback: check stall_bookings directly
+  const stl = await queryOne<StallBookingRecord>('SELECT * FROM stall_bookings WHERE id = ?', [trimmed]);
+  if (stl) {
+    const norm = normalizePaymentStatus(stl.payment_status || stl.status);
+    return {
+      success: true,
+      found: true,
+      status: norm,
+      rawStatus: stl.payment_status || stl.status,
+      isVerified: norm === 'PAID',
+      registrationId: stl.id,
+      amount: Number(stl.total_amount || 0),
+      utrNumber: stl.transaction_id || undefined,
+      message: norm === 'PAID'
+        ? 'Payment verified — Stall booking confirmed!'
+        : norm === 'REVIEW_REQUIRED'
+        ? 'Payment submitted for verification. Your booking will be confirmed after payment verification.'
+        : 'Payment pending.',
+      referenceType: 'stall'
+    };
+  }
+
+  return {
+    success: false,
+    found: false,
+    status: 'PENDING',
+    rawStatus: 'not_found',
+    isVerified: false,
+    registrationId: trimmed,
+    amount: 0,
+    message: 'Registration reference not found in the database.'
+  };
+}
+
 export async function confirmClientSideRegistration(payload: ClientRegistrationPayload): Promise<{
   success: boolean;
   registrationId: string;
@@ -1078,7 +1683,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
 }> {
   await ensureSchema();
 
-  const cleanUtr = String(payload.utrNumber || '').trim();
+  const cleanUtr = String(payload.utrNumber || '').trim().replace(/\s/g, '');
   if (!cleanUtr || cleanUtr.length < 6) {
     throw new Error('Invalid UPI Reference / UTR Number. Must be at least 6 digits/characters from your payment receipt.');
   }
@@ -1089,15 +1694,19 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
 
   if (!isTest) {
     const existingTx = await queryOne<PaymentRecord>(
-      'SELECT id, reference_id FROM payments WHERE gateway_payment_id = ? AND registration_type = \'REAL\'',
-      [cleanUtr]
+      `SELECT id, reference_id FROM payments 
+       WHERE (gateway_payment_id = ? OR user_reference = ?) 
+         AND registration_type = 'REAL' 
+         AND reference_id != ?`,
+      [cleanUtr, cleanUtr, payload.registrationId || '']
     );
     if (existingTx) {
-      throw new Error(`This UPI Reference / UTR Number (${cleanUtr}) has already been submitted for registration ${existingTx.reference_id}. If you believe this is an error, contact festival support.`);
+      throw new Error(`This UPI Reference / UTR Number (${cleanUtr}) has already been submitted for registration ${existingTx.reference_id}. Duplicate payment claims are not permitted.`);
     }
   }
 
   const now = new Date().toISOString();
+  const paymentStatus = 'REVIEW_REQUIRED';
 
   if (payload.referenceType === 'event') {
     if (!payload.eventData) throw new Error('Missing event registration details');
@@ -1122,78 +1731,99 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       : await generateRegistrationId(isTest);
 
     const payId = payload.paymentId || `PAY-${regId}-${Date.now().toString().slice(-6)}`;
-
-    // Initial payment status is 'submitted' (Pending Verification)
-    // NEVER claim automatic success; requires administrative verification!
-    const paymentStatus = 'submitted';
     const regStatus = 'registered';
 
-    await execute(`
-      INSERT INTO event_registrations (
-        id, event_id, college_name, college_location, team_name,
-        leader_name, leader_email, leader_phone, participant_count,
-        total_fee, payment_status, registration_status, registration_type,
-        transaction_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      regId,
-      event.id,
-      collegeName?.trim() || 'Bishop Heber College',
-      collegeLocation?.trim() || 'Tiruchirappalli',
-      teamName?.trim() || null,
-      leaderName.trim(),
-      leaderEmail.trim().toLowerCase(),
-      leaderPhone.trim(),
-      participantCount,
-      calculatedFee,
-      paymentStatus,
-      regStatus,
-      regType,
-      cleanUtr,
-      now,
-      now
-    ]);
-
-    // Insert participants
-    for (let idx = 0; idx < participants.length; idx++) {
-      const p = participants[idx];
-      const partId = `PART-${regId}-${idx + 1}`;
+    // Insert or update registration
+    const existingReg = await queryOne('SELECT id FROM event_registrations WHERE id = ?', [regId]);
+    if (existingReg) {
       await execute(`
-        INSERT INTO participants (
-          id, registration_id, full_name, roll_number, department, year_of_study, section, participant_order
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        UPDATE event_registrations SET
+          payment_status = 'REVIEW_REQUIRED',
+          transaction_id = ?,
+          updated_at = ?
+        WHERE id = ?
+      `, [cleanUtr, now, regId]);
+    } else {
+      await execute(`
+        INSERT INTO event_registrations (
+          id, event_id, college_name, college_location, team_name,
+          leader_name, leader_email, leader_phone, participant_count,
+          total_fee, payment_status, registration_status, registration_type,
+          transaction_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        partId,
         regId,
-        p.fullName.trim(),
-        p.rollNumber.trim(),
-        p.department.trim(),
-        p.yearOfStudy.trim(),
-        p.section.trim(),
-        idx + 1
+        event.id,
+        collegeName?.trim() || 'Bishop Heber College',
+        collegeLocation?.trim() || 'Tiruchirappalli',
+        teamName?.trim() || null,
+        leaderName.trim(),
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        participantCount,
+        calculatedFee,
+        paymentStatus,
+        regStatus,
+        regType,
+        cleanUtr,
+        now,
+        now
       ]);
+
+      // Insert participants
+      for (let idx = 0; idx < participants.length; idx++) {
+        const p = participants[idx];
+        const partId = `PART-${regId}-${idx + 1}`;
+        await execute(`
+          INSERT INTO participants (
+            id, registration_id, full_name, roll_number, department, year_of_study, section, participant_order
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          partId,
+          regId,
+          p.fullName.trim(),
+          p.rollNumber.trim(),
+          p.department.trim(),
+          p.yearOfStudy.trim(),
+          p.section.trim(),
+          idx + 1
+        ]);
+      }
     }
 
-    // Insert payment record
-    await execute(`
-      INSERT INTO payments (
-        id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
-        gateway_signature, amount, currency, status, payer_email, payer_phone,
-        payment_method, idempotency_key, registration_type, created_at
-      ) VALUES (?, 'event', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', ?, ?, ?, 'UPI - GPay', ?, ?, ?)
-    `, [
-      payId,
-      regId,
-      `ORD-${regId}`,
-      cleanUtr,
-      calculatedFee,
-      paymentStatus,
-      leaderEmail.trim().toLowerCase(),
-      leaderPhone.trim(),
-      payId,
-      regType,
-      now
-    ]);
+    // Insert or update payment record
+    const existingPay = await queryOne<PaymentRecord>('SELECT id FROM payments WHERE reference_id = ? OR id = ?', [regId, payId]);
+    if (existingPay) {
+      await execute(`
+        UPDATE payments SET
+          gateway_payment_id = ?,
+          user_reference = ?,
+          status = 'REVIEW_REQUIRED',
+          verification_method = 'DIRECT_UPI_REVIEW'
+        WHERE id = ?
+      `, [cleanUtr, cleanUtr, existingPay.id]);
+    } else {
+      await execute(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+          gateway_signature, amount, currency, status, payer_email, payer_phone,
+          payment_method, idempotency_key, registration_type, created_at,
+          user_reference, verification_method
+        ) VALUES (?, 'event', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW')
+      `, [
+        payId,
+        regId,
+        `ORD-${regId}`,
+        cleanUtr,
+        calculatedFee,
+        leaderEmail.trim().toLowerCase(),
+        leaderPhone.trim(),
+        payId,
+        regType,
+        now,
+        cleanUtr
+      ]);
+    }
 
     await logAuditEvent(
       'CLIENT_REGISTRATION_PIPELINE',
@@ -1203,7 +1833,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       JSON.stringify({
         amount: calculatedFee,
         utrNumber: cleanUtr,
-        paymentStatus,
+        paymentStatus: 'REVIEW_REQUIRED',
         registrationType: regType,
         event: event.title
       })
@@ -1216,7 +1846,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       amount: calculatedFee,
       utrNumber: cleanUtr,
       registrationType: regType,
-      paymentStatus,
+      paymentStatus: 'REVIEW_REQUIRED',
       ticketDetails: {
         eventName: event.title,
         collegeName,
@@ -1247,58 +1877,80 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       : await generateStallBookingId(isTest);
 
     const payId = payload.paymentId || `PAY-${bookingId}-${Date.now().toString().slice(-6)}`;
-    const paymentStatus = 'submitted';
 
-    await execute(`
-      INSERT INTO stall_bookings (
-        id, option_id, stall_category, applicant_type, entity_name, college_name,
-        department_class, contact_name, contact_email, contact_phone, business_details,
-        products_services, stalls_requested, duration_days, has_electricity, total_amount, payment_status,
-        status, registration_type, transaction_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
-    `, [
-      bookingId,
-      opt.id,
-      opt.category,
-      applicantType,
-      entityName.trim(),
-      collegeName?.trim() || null,
-      departmentClass?.trim() || null,
-      contactName.trim(),
-      contactEmail.trim().toLowerCase(),
-      contactPhone.trim(),
-      businessDetails?.trim() || null,
-      productsServices.trim(),
-      stallsRequested,
-      validDays,
-      opt.has_electricity,
-      totalAmount,
-      paymentStatus,
-      regType,
-      cleanUtr,
-      now,
-      now
-    ]);
+    const existingBooking = await queryOne('SELECT id FROM stall_bookings WHERE id = ?', [bookingId]);
+    if (existingBooking) {
+      await execute(`
+        UPDATE stall_bookings SET
+          payment_status = 'REVIEW_REQUIRED',
+          transaction_id = ?,
+          updated_at = ?
+        WHERE id = ?
+      `, [cleanUtr, now, bookingId]);
+    } else {
+      await execute(`
+        INSERT INTO stall_bookings (
+          id, option_id, stall_category, applicant_type, entity_name, college_name,
+          department_class, contact_name, contact_email, contact_phone, business_details,
+          products_services, stalls_requested, duration_days, has_electricity, total_amount, payment_status,
+          status, registration_type, transaction_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', 'pending', ?, ?, ?, ?)
+      `, [
+        bookingId,
+        opt.id,
+        opt.category,
+        applicantType,
+        entityName.trim(),
+        collegeName?.trim() || null,
+        departmentClass?.trim() || null,
+        contactName.trim(),
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        businessDetails?.trim() || null,
+        productsServices.trim(),
+        stallsRequested,
+        validDays,
+        opt.has_electricity,
+        totalAmount,
+        regType,
+        cleanUtr,
+        now,
+        now
+      ]);
+    }
 
-    await execute(`
-      INSERT INTO payments (
-        id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
-        gateway_signature, amount, currency, status, payer_email, payer_phone,
-        payment_method, idempotency_key, registration_type, created_at
-      ) VALUES (?, 'stall', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', ?, ?, ?, 'UPI - GPay', ?, ?, ?)
-    `, [
-      payId,
-      bookingId,
-      `ORD-${bookingId}`,
-      cleanUtr,
-      totalAmount,
-      paymentStatus,
-      contactEmail.trim().toLowerCase(),
-      contactPhone.trim(),
-      payId,
-      regType,
-      now
-    ]);
+    const existingPay = await queryOne<PaymentRecord>('SELECT id FROM payments WHERE reference_id = ? OR id = ?', [bookingId, payId]);
+    if (existingPay) {
+      await execute(`
+        UPDATE payments SET
+          gateway_payment_id = ?,
+          user_reference = ?,
+          status = 'REVIEW_REQUIRED',
+          verification_method = 'DIRECT_UPI_REVIEW'
+        WHERE id = ?
+      `, [cleanUtr, cleanUtr, existingPay.id]);
+    } else {
+      await execute(`
+        INSERT INTO payments (
+          id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
+          gateway_signature, amount, currency, status, payer_email, payer_phone,
+          payment_method, idempotency_key, registration_type, created_at,
+          user_reference, verification_method
+        ) VALUES (?, 'stall', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW')
+      `, [
+        payId,
+        bookingId,
+        `ORD-${bookingId}`,
+        cleanUtr,
+        totalAmount,
+        contactEmail.trim().toLowerCase(),
+        contactPhone.trim(),
+        payId,
+        regType,
+        now,
+        cleanUtr
+      ]);
+    }
 
     await logAuditEvent(
       'CLIENT_REGISTRATION_PIPELINE',
@@ -1309,6 +1961,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         amount: totalAmount,
         utrNumber: cleanUtr,
         category: opt.name,
+        paymentStatus: 'REVIEW_REQUIRED',
         registrationType: regType
       })
     );
@@ -1320,7 +1973,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       amount: totalAmount,
       utrNumber: cleanUtr,
       registrationType: regType,
-      paymentStatus,
+      paymentStatus: 'REVIEW_REQUIRED',
       ticketDetails: {
         categoryName: opt.name,
         entityName,
@@ -1777,14 +2430,27 @@ export async function getAllPayments(filter?: {
   }
 
   if (filter?.status) {
-    sql += ' AND status = ?';
-    params.push(filter.status);
+    const norm = filter.status.toUpperCase();
+    if (norm === 'REVIEW_REQUIRED' || norm === 'SUBMITTED') {
+      sql += " AND status IN ('REVIEW_REQUIRED', 'submitted')";
+    } else if (norm === 'PAID' || norm === 'VERIFIED') {
+      sql += " AND status IN ('PAID', 'verified', 'successful')";
+    } else if (norm === 'PENDING') {
+      sql += " AND status IN ('PENDING', 'pending')";
+    } else if (norm === 'FAILED' || norm === 'REJECTED') {
+      sql += " AND status IN ('FAILED', 'rejected', 'failed')";
+    } else if (norm === 'REFUNDED') {
+      sql += " AND status IN ('refunded', 'REFUNDED')";
+    } else {
+      sql += ' AND status = ?';
+      params.push(filter.status);
+    }
   }
 
   if (filter?.search) {
-    sql += ' AND (id LIKE ? OR reference_id LIKE ? OR gateway_payment_id LIKE ? OR payer_email LIKE ?)';
+    sql += ' AND (id LIKE ? OR reference_id LIKE ? OR gateway_payment_id LIKE ? OR user_reference LIKE ? OR payer_email LIKE ?)';
     const term = `%${filter.search}%`;
-    params.push(term, term, term, term);
+    params.push(term, term, term, term, term);
   }
 
   sql += ' ORDER BY created_at DESC';
@@ -1820,28 +2486,32 @@ export async function getAllPayments(filter?: {
   });
 }
 
-export async function verifyPayment(paymentId: string, adminUsername: string): Promise<boolean> {
+export async function verifyPayment(paymentId: string, adminUsername: string, notes?: string): Promise<boolean> {
   const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
   if (!pay) throw new Error('Payment not found');
 
   const now = new Date().toISOString();
   await execute(`
     UPDATE payments SET
-      status = 'verified', verified_at = ?, verified_by = ?
+      status = 'PAID',
+      verified_at = ?,
+      verified_by = ?,
+      verified_amount = ?,
+      review_notes = ?
     WHERE id = ?
-  `, [now, adminUsername, paymentId]);
+  `, [now, adminUsername, pay.amount, notes || 'Verified by admin against bank records', paymentId]);
 
   // Update associated registration
   if (pay.reference_type === 'event') {
     await execute(`
       UPDATE event_registrations SET
-        payment_status = 'verified', registration_status = 'confirmed', updated_at = ?
+        payment_status = 'PAID', registration_status = 'confirmed', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
   } else {
     await execute(`
       UPDATE stall_bookings SET
-        payment_status = 'verified', status = 'approved', updated_at = ?
+        payment_status = 'PAID', status = 'approved', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
   }
@@ -1851,7 +2521,7 @@ export async function verifyPayment(paymentId: string, adminUsername: string): P
     'PAYMENT_VERIFIED',
     'PAYMENT',
     paymentId,
-    `Admin manually verified payment of ₹${pay.amount} (Ref: ${pay.reference_id}, UTR: ${pay.gateway_payment_id || 'N/A'})`
+    `Admin manually verified payment of ₹${pay.amount} (Ref: ${pay.reference_id}, UTR: ${pay.gateway_payment_id || pay.user_reference || 'N/A'})${notes ? ' - ' + notes : ''}`
   );
 
   return true;
@@ -1864,14 +2534,14 @@ export async function rejectPayment(paymentId: string, adminUsername: string, re
   const now = new Date().toISOString();
   await execute(`
     UPDATE payments SET
-      status = 'rejected', rejection_reason = ?, verified_at = ?, verified_by = ?
+      status = 'FAILED', rejection_reason = ?, verified_at = ?, verified_by = ?
     WHERE id = ?
   `, [reason, now, adminUsername, paymentId]);
 
   if (pay.reference_type === 'event') {
     await execute(`
       UPDATE event_registrations SET
-        payment_status = 'rejected', updated_at = ?
+        payment_status = 'rejected', registration_status = 'cancelled', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
   } else {
@@ -1908,6 +2578,12 @@ export async function refundPayment(paymentId: string, adminUsername: string, re
     await execute(`
       UPDATE event_registrations SET
         payment_status = 'refunded', registration_status = 'cancelled', updated_at = ?
+      WHERE id = ?
+    `, [now, pay.reference_id]);
+  } else {
+    await execute(`
+      UPDATE stall_bookings SET
+        payment_status = 'refunded', status = 'refunded', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
   }
