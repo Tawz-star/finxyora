@@ -11,7 +11,7 @@ export default async function AboutFinTechPage() {
 
   return (
     <div className="py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-16">
-      
+
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card border border-sky-400/30 text-sky-300 text-xs sm:text-sm font-medium">
@@ -73,7 +73,7 @@ export default async function AboutFinTechPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
             <span className="text-sky-400 font-bold block mb-1">Executive Council</span>
-            <p className="text-slate-300">President, Vice President, Secretary &amp; Treasurer supervising annual operations.</p>
+            <p className="text-slate-300">President, Vice President, Cultural Coordinator, Co Cultural Coordinator, Secretary, Joint Secretary, Treasurer, Joint Treasurer, PRO supervising annual operations.</p>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
