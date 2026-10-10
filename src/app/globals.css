@@ -131,26 +131,26 @@ body {
 }
 
 /* ============================================================== */
-/* FINXYORA 2K26 HERO LOGO SPRING ENTRANCE ANIMATION             */
+/* FINXYORA 2K26 HERO LOGO SPRING & BOUNCY ANIMATIONS             */
 /* ============================================================== */
-@keyframes hero-logo-spring {
+@keyframes hero-logo-spring-entrance {
   0% {
     opacity: 0;
-    transform: translateY(60px) scale(0.92);
+    transform: translateY(48px) scale(0.88);
   }
-  28% {
+  32% {
     opacity: 0.95;
-    transform: translateY(-9px) scale(1.03);
+    transform: translateY(-12px) scale(1.05);
   }
-  50% {
+  52% {
     opacity: 1;
-    transform: translateY(4px) scale(0.99);
+    transform: translateY(5px) scale(0.985);
   }
   72% {
-    transform: translateY(-2px) scale(1.006);
+    transform: translateY(-3px) scale(1.012);
   }
   88% {
-    transform: translateY(0.8px) scale(0.999);
+    transform: translateY(1px) scale(0.998);
   }
   100% {
     opacity: 1;
@@ -158,16 +158,54 @@ body {
   }
 }
 
-.hero-logo-spring {
-  animation: hero-logo-spring 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.1s 1 normal both;
+@keyframes hero-logo-bouncy-loop {
+  0%, 100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  25% {
+    transform: translateY(-10px) scale(0.985, 1.02);
+  }
+  45% {
+    transform: translateY(2px) scale(1.02, 0.98);
+  }
+  60% {
+    transform: translateY(-5px) scale(0.992, 1.01);
+  }
+  75% {
+    transform: translateY(1px) scale(1.008, 0.994);
+  }
+  88% {
+    transform: translateY(-1.5px) scale(0.998, 1.002);
+  }
+}
+
+.hero-logo-spring-entrance {
+  animation: hero-logo-spring-entrance 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s 1 normal both;
   will-change: transform, opacity;
-  backface-visibility: hidden;
   transform-origin: center center;
+}
+
+.hero-logo-bouncy-loop {
+  animation: hero-logo-bouncy-loop 5.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) 1.3s infinite;
+  will-change: transform;
+  transform-origin: center bottom;
+}
+
+.hero-logo-spring {
+  animation: hero-logo-spring-entrance 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s 1 normal both;
+  will-change: transform, opacity;
+  transform-origin: center center;
+}
+
+.hero-logo-rendered {
   image-rendering: -webkit-optimize-contrast;
   image-rendering: high-quality;
+  filter: drop-shadow(0 14px 45px rgba(56, 189, 248, 0.32)) drop-shadow(0 4px 14px rgba(37, 99, 235, 0.38));
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero-logo-spring-entrance,
+  .hero-logo-bouncy-loop,
   .hero-logo-spring {
     animation: none !important;
     opacity: 1 !important;

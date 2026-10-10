@@ -16,7 +16,8 @@ import {
   Building,
   TrendingUp,
   Cpu,
-  Award
+  Award,
+  CreditCard
 } from 'lucide-react';
 import CountdownTimer from '@/components/CountdownTimer';
 import EventCard from '@/components/EventCard';
@@ -48,77 +49,83 @@ export default async function HomePage() {
       <section className="relative pt-12 pb-20 md:pt-20 md:pb-28 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="text-center space-y-6 max-w-4xl mx-auto">
           
-          {/* Top Pill / Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card border border-sky-400/30 text-sky-300 text-xs sm:text-sm font-medium shadow-md shadow-sky-500/10 animate-fadeIn">
-            <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-            <span>Commerce Department &bull; FinTech Association Presents</span>
+          {/* Top Glowing Glassmorphism Pill / Badge */}
+          <div className="inline-flex items-center gap-2.5 px-4 sm:px-6 py-2 rounded-full glass-panel border border-sky-400/40 text-sky-200 text-xs sm:text-sm font-semibold shadow-[0_0_24px_rgba(56,189,248,0.22)] hover:border-sky-300 transition-all backdrop-blur-xl">
+            <Sparkles className="w-4 h-4 text-sky-400 animate-pulse shrink-0" />
+            <span className="tracking-wide">Commerce Department &bull; FinTech Association Presents</span>
           </div>
 
-          {/* Official FINXYORA 2K26 Hero Title / Logo */}
-          <div className="flex justify-center items-center -my-6 sm:-my-10 md:-my-14 lg:-my-16">
-            <h1 className="sr-only">FINXYORA 2K26</h1>
-            <Image
-              src="/finxyora-hero-logo.png"
-              alt="FINXYORA 2K26"
-              width={1341}
-              height={1677}
-              priority
-              quality={95}
-              sizes="(max-width: 640px) 280px, (max-width: 768px) 360px, (max-width: 1024px) 420px, 460px"
-              className="hero-logo-spring w-[280px] sm:w-[360px] md:w-[420px] lg:w-[460px] max-w-[85vw] h-auto object-contain mx-auto select-none pointer-events-none drop-shadow-[0_10px_35px_rgba(56,189,248,0.25)]"
-            />
+          {/* Official High-Resolution FINXYORA 2K26 Hero Title / Logo with Spring & Bouncy Animation */}
+          <div className="hero-logo-spring-entrance flex justify-center items-center -my-6 sm:-my-10 md:-my-14 lg:-my-16">
+            <div className="hero-logo-bouncy-loop flex justify-center items-center">
+              {/* Accessibility screen-reader title */}
+              <h1 className="sr-only">FINXYORA 2K26</h1>
+              <picture className="inline-block">
+                <source srcSet="/finxyora-hero-logo.webp" type="image/webp" />
+                <Image
+                  src="/finxyora-hero-logo.png"
+                  alt="FINXYORA 2K26"
+                  width={1341}
+                  height={1677}
+                  priority
+                  quality={95}
+                  sizes="(max-width: 640px) 280px, (max-width: 768px) 360px, (max-width: 1024px) 420px, 460px"
+                  className="hero-logo-rendered w-[280px] sm:w-[360px] md:w-[420px] lg:w-[460px] max-w-[85vw] h-auto object-contain mx-auto select-none pointer-events-none"
+                />
+              </picture>
+            </div>
           </div>
 
-          {/* Tagline */}
-          <p className="text-xl sm:text-2xl md:text-3xl font-semibold text-sky-200/90 tracking-wide font-sans">
-            “Where Finance Meets Innovation.”
+          {/* Official Tagline */}
+          <p className="text-xl sm:text-2xl md:text-3xl font-bold tracking-wide font-sans text-transparent bg-clip-text bg-gradient-to-r from-white via-sky-200 to-sky-400">
+            &ldquo;Where Finance Meets Innovation.&rdquo;
           </p>
 
-          {/* Event description */}
+          {/* Refined Festival Description Copy */}
           <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
             The premier intra-collegiate technical, management, and cultural festival. Immerse yourself in high-stakes Artificial Intelligence prompt engineering, strategic executive leadership, runway corporate choreography, FinTech quizzing, and football franchise auctions.
           </p>
 
-          {/* Meta Details Pill (Date, Venue, Deadline) */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-2 text-xs sm:text-sm text-slate-300">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/60 border border-sky-500/20">
-              <Calendar className="w-4 h-4 text-sky-400" />
+          {/* Glass-Panel Meta Highlights (Date, Venue, Fee Structure) */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 pt-2 text-xs sm:text-sm text-slate-200 font-medium">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-card border border-sky-500/25 hover:border-sky-400/50 transition-all shadow-md">
+              <Calendar className="w-4 h-4 text-sky-400 shrink-0" />
               <span>{eventDates}</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/60 border border-sky-500/20">
-              <MapPin className="w-4 h-4 text-sky-400" />
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-card border border-sky-500/25 hover:border-sky-400/50 transition-all shadow-md">
+              <MapPin className="w-4 h-4 text-sky-400 shrink-0" />
               <span>{eventVenue}</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/60 border border-sky-500/20">
-              <Clock className="w-4 h-4 text-sky-400" />
-              <span>Fee: ₹{defaultFee || '50'} per person</span>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl glass-card border border-sky-500/25 hover:border-sky-400/50 transition-all shadow-md">
+              <CreditCard className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Fee: ₹{defaultFee || '50'} Per Person</span>
             </div>
           </div>
 
-          {/* DUAL PROMINENT CTA PATHWAYS */}
+          {/* Dual High-Contrast Action CTAs */}
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
             <Link
               href="/events"
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl text-base font-bold bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl text-base font-extrabold bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/30 hover:shadow-sky-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group tracking-wide"
             >
               <Trophy className="w-5 h-5 text-white group-hover:rotate-12 transition-transform" />
-              REGISTER FOR EVENTS
+              <span>REGISTER FOR EVENTS</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
 
             <Link
               href="/stalls"
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl text-base font-bold glass-panel hover:bg-slate-800/90 text-sky-300 hover:text-white border border-sky-500/40 hover:border-sky-400 shadow-xl shadow-blue-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl text-base font-extrabold glass-panel hover:bg-slate-800/90 text-sky-300 hover:text-white border border-sky-400/50 hover:border-sky-300 shadow-xl shadow-blue-900/30 hover:shadow-sky-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group tracking-wide"
             >
               <Store className="w-5 h-5 text-sky-400 group-hover:scale-110 transition-transform" />
-              BOOK A FESTIVAL STALL
+              <span>BOOK A FESTIVAL STALL</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
-          {/* COUNTDOWN TIMER */}
-          <div className="pt-8">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">
+          {/* Interactive Inception Countdown Timer */}
+          <div className="pt-8 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
               Event Inception Countdown
             </p>
             <CountdownTimer targetDate={settings.event_countdown_target || '2026-11-12T09:00:00'} />
