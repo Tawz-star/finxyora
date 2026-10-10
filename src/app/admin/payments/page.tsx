@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CreditCard,
   Search,
@@ -15,7 +16,9 @@ import {
   TestTube,
   BadgeCheck,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Shield,
+  Layers
 } from 'lucide-react';
 import { PaymentRecord, normalizePaymentStatus } from '@/lib/payment-types';
 
@@ -37,7 +40,19 @@ const STATUS_STYLES: Record<string, string> = {
   EXPIRED: 'bg-slate-800 text-slate-500 border-slate-700'
 };
 
+function formatDate(val?: string | null): string {
+  if (!val) return '—';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+  } catch {
+    return '—';
+  }
+}
+
 export default function AdminPaymentsPage() {
+  const router = useRouter();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -61,11 +76,19 @@ export default function AdminPaymentsPage() {
 
     fetch(`/api/admin/payments?${params.toString()}`)
       .then(async (res) => {
+        if (res.status === 401) {
+          setError('Administrator session required. Please log in.');
+          setPayments([]);
+          return;
+        }
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to fetch payments');
         setPayments(data.payments || []);
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Network error loading payments');
+        setPayments([]);
+      })
       .finally(() => setLoading(false));
   }, [statusFilter, search, regTypeFilter]);
 
@@ -111,6 +134,8 @@ export default function AdminPaymentsPage() {
     }
   };
 
+  const isAuthError = error && (error.toLowerCase().includes('session') || error.toLowerCase().includes('unauthorized') || error.toLowerCase().includes('log in'));
+
   return (
     <div className="space-y-8 animate-fadeIn">
 
@@ -128,9 +153,10 @@ export default function AdminPaymentsPage() {
 
         <button
           onClick={fetchPayments}
-          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 flex items-center gap-1.5 self-start sm:self-auto transition-all"
+          disabled={loading}
+          className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 flex items-center gap-1.5 self-start sm:self-auto transition-all disabled:opacity-50"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
 
@@ -141,10 +167,38 @@ export default function AdminPaymentsPage() {
           <span>{successMsg}</span>
         </div>
       )}
-      {error && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
+
+      {/* Session Expired / Unauthorized Banner */}
+      {isAuthError && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 shrink-0 text-amber-400" />
+            <div>
+              <p className="font-bold text-white text-sm">Administrator Session Required</p>
+              <p className="text-slate-400 mt-0.5">Please re-authenticate to view live transaction records and manage financial approvals.</p>
+            </div>
+          </div>
+          <Link
+            href="/admin/login"
+            className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold transition-all shrink-0"
+          >
+            Log In to Admin
+          </Link>
+        </div>
+      )}
+
+      {error && !isAuthError && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={fetchPayments}
+            className="text-[11px] font-bold text-sky-400 hover:underline shrink-0"
+          >
+            Try Again
+          </button>
         </div>
       )}
 
@@ -158,7 +212,7 @@ export default function AdminPaymentsPage() {
             </div>
             
             <p className="text-xs text-slate-300 leading-relaxed">
-              Please verify that <strong className="text-emerald-400 font-mono">₹{verifyModal.amount.toFixed(2)}</strong> with UTR <strong className="text-amber-300 font-mono">{verifyModal.utr || 'N/A'}</strong> has been received in the festival Axis Bank / GPay account (<code className="text-sky-300">s.venkatesanraja@okaxis</code>).
+              Please verify that <strong className="text-emerald-400 font-mono">₹{Number(verifyModal.amount || 0).toFixed(2)}</strong> with UTR <strong className="text-amber-300 font-mono">{verifyModal.utr || 'N/A'}</strong> has been received in the festival Axis Bank / GPay account (<code className="text-sky-300">s.venkatesanraja@okaxis</code>).
             </p>
 
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] space-y-1">
@@ -259,6 +313,7 @@ export default function AdminPaymentsPage() {
             >
               {t === 'REAL' && <BadgeCheck className="w-3 h-3" />}
               {t === 'TEST' && <TestTube className="w-3 h-3" />}
+              {t === 'ALL' && <Layers className="w-3 h-3" />}
               {t}
             </button>
           ))}
@@ -318,8 +373,18 @@ export default function AdminPaymentsPage() {
             LOADING PAYMENT RECORDS FROM CENTRAL SQL DATABASE...
           </div>
         ) : payments.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400">
-            No payment records matching the selected filters.
+          <div className="py-12 text-center space-y-3">
+            <p className="text-xs text-slate-400">
+              No payment records matching the selected filters.
+            </p>
+            {regTypeFilter === 'REAL' && (
+              <button
+                onClick={() => setRegTypeFilter('ALL')}
+                className="text-xs text-sky-400 hover:text-sky-300 underline font-semibold"
+              >
+                Switch to ALL data (includes test registrations)
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -384,7 +449,7 @@ export default function AdminPaymentsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center font-mono font-bold text-white">
-                        ₹{p.amount.toFixed(2)}
+                        ₹{Number(p.amount || 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 justify-center ${
@@ -414,10 +479,10 @@ export default function AdminPaymentsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center text-[11px] text-slate-400">
-                        {new Date(p.created_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                        {formatDate(p.created_at)}
                         {p.verified_at && (
                           <div className="text-[10px] text-emerald-400">
-                            ✓ {new Date(p.verified_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+                            ✓ {formatDate(p.verified_at)}
                           </div>
                         )}
                       </td>
@@ -428,7 +493,7 @@ export default function AdminPaymentsPage() {
                             <button
                               onClick={() => setVerifyModal({
                                 id: p.id,
-                                amount: p.amount,
+                                amount: Number(p.amount || 0),
                                 utr: utr || '',
                                 referenceId: p.reference_id
                               })}
@@ -454,16 +519,18 @@ export default function AdminPaymentsPage() {
                             </button>
                           )}
 
-                          {/* Refund for verified */}
+                          {/* Refund */}
                           {isVerified && (
                             <button
                               onClick={() => {
-                                const reason = window.prompt('Enter reason for refund (required, logged to audit trail):');
-                                if (reason) handleAction('refund', p.id, reason);
+                                if (confirm(`Issue refund for payment ${p.id} (₹${Number(p.amount || 0).toFixed(2)})?`)) {
+                                  const reason = prompt('Reason for refund:');
+                                  if (reason) handleAction('refund', p.id, reason);
+                                }
                               }}
                               disabled={isActing}
                               className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-white border border-purple-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
-                              title="Issue refund"
+                              title="Mark as refunded"
                             >
                               <RotateCcw className="w-3 h-3" />
                               Refund
@@ -479,6 +546,7 @@ export default function AdminPaymentsPage() {
           </div>
         )}
       </div>
+
     </div>
   );
 }

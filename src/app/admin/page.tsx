@@ -124,7 +124,7 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Link
             href="/admin/events"
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-colors"
@@ -137,6 +137,13 @@ export default function AdminDashboardPage() {
           >
             Manage Stalls
           </Link>
+          <Link
+            href="/admin/payments"
+            className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 hover:border-sky-500/40 transition-colors flex items-center gap-1.5"
+          >
+            <CreditCard className="w-3.5 h-3.5 text-sky-400" />
+            Reconcile Payments
+          </Link>
         </div>
       </div>
 
@@ -144,8 +151,11 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* Total Registrations */}
-        <div className="p-6 rounded-2xl glass-card border border-sky-500/20 space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <Link
+          href="/admin/registrations"
+          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+        >
+          <div className="flex items-center justify-between text-slate-400 group-hover:text-sky-300 transition-colors">
             <span className="text-xs font-bold uppercase tracking-wider">Event Registrations</span>
             <Trophy className="w-5 h-5 text-sky-400" />
           </div>
@@ -157,11 +167,14 @@ export default function AdminDashboardPage() {
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>{metrics.totalConfirmedParticipants} Confirmed Student Delegates</span>
           </div>
-        </div>
+        </Link>
 
         {/* Net Collections */}
-        <div className="p-6 rounded-2xl glass-card border border-sky-500/20 space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <Link
+          href="/admin/payments"
+          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-emerald-500/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+        >
+          <div className="flex items-center justify-between text-slate-400 group-hover:text-emerald-300 transition-colors">
             <span className="text-xs font-bold uppercase tracking-wider">Verified Revenue</span>
             <DollarSign className="w-5 h-5 text-emerald-400" />
           </div>
@@ -174,11 +187,14 @@ export default function AdminDashboardPage() {
               <span className="text-rose-400 font-semibold">Refunds: ₹{metrics.refundedCollections}</span>
             )}
           </div>
-        </div>
+        </Link>
 
         {/* Stall Bookings */}
-        <div className="p-6 rounded-2xl glass-card border border-sky-500/20 space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <Link
+          href="/admin/stalls"
+          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-indigo-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+        >
+          <div className="flex items-center justify-between text-slate-400 group-hover:text-indigo-300 transition-colors">
             <span className="text-xs font-bold uppercase tracking-wider">Festival Stalls</span>
             <Store className="w-5 h-5 text-indigo-400" />
           </div>
@@ -190,11 +206,14 @@ export default function AdminDashboardPage() {
             <span>&bull;</span>
             <span>Vendor: <strong className="text-white">{metrics.vendorStallBookings}</strong></span>
           </div>
-        </div>
+        </Link>
 
         {/* Payments Settlement Status */}
-        <div className="p-6 rounded-2xl glass-card border border-sky-500/20 space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <Link
+          href="/admin/payments"
+          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+        >
+          <div className="flex items-center justify-between text-slate-400 group-hover:text-sky-300 transition-colors">
             <span className="text-xs font-bold uppercase tracking-wider">Settlement Ledger</span>
             <CreditCard className="w-5 h-5 text-sky-400" />
           </div>
@@ -206,7 +225,7 @@ export default function AdminDashboardPage() {
             <span className="text-amber-300 font-semibold">Pending: {metrics.pendingPayments}</span>
             <span className="text-rose-400 font-semibold">Declined: {metrics.failedPayments}</span>
           </div>
-        </div>
+        </Link>
 
       </div>
 
