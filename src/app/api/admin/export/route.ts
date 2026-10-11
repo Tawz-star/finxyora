@@ -9,16 +9,9 @@ import {
   getAllStallBookings,
   formatApplicantType,
   formatCreatedAtIST,
-  EventRegistrationRecord,
   StallBookingRecord,
   EventRecord
 } from '@/lib/db';
-
-function escapeCsvCell(val: unknown): string {
-  if (val === null || val === undefined) return '""';
-  const str = String(val);
-  return `"${str.replace(/"/g, '""')}"`;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,134 +22,139 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type') || 'events';
-    const format = searchParams.get('format');
     const eventId = searchParams.get('eventId');
     const registrationType = (searchParams.get('registrationType')?.toUpperCase() as 'REAL' | 'TEST' | 'ALL') || 'ALL';
 
-    // ==========================================
-    // 1. EVENT REGISTRATIONS EXPORT
-    // ==========================================
+    // =========================================================================
+    // 1. EVENT REGISTRATIONS REPORT (EXCEL .XLSX WITH SUMMARY & EVENT SHEETS)
+    // =========================================================================
     if (type === 'events') {
       const allDbEvents = await getAllEvents();
+      const eventsToExport = eventId
+        ? allDbEvents.filter((e) => e.id === eventId)
+        : allDbEvents;
 
-      // CASE A: Single Event CSV Export (if requested via format=csv with eventId)
-      if (format === 'csv' && eventId) {
-        const targetEvent = allDbEvents.find((e) => e.id === eventId) || (await getEventById(eventId));
-        if (!targetEvent) {
-          return NextResponse.json({ success: false, error: `Event "${eventId}" not found` }, { status: 404 });
-        }
-
-        const isSolo = Number(targetEvent.max_participants) <= 1;
-        const regRecords = await getAllEventRegistrations({ eventId, registrationType });
-        const enriched = await Promise.all(regRecords.map((r) => getEventRegistration(r.id)));
-        const validRegs = enriched.filter(Boolean) as NonNullable<Awaited<ReturnType<typeof getEventRegistration>>>[];
-
-        let headers: string[];
-        let rows: string[][];
-
-        if (isSolo) {
-          headers = [
-            'Registration ID',
-            'Candidate Name',
-            'Roll Number',
-            'Department',
-            'Year of Study',
-            'Section',
-            'College Name',
-            'Candidate Email',
-            'Candidate Phone',
-            'Registration Type',
-            'Total Fee (INR)',
-            'Payment Status',
-            'Registration Status',
-            'UTR / Transaction ID',
-            'Registered Date & Time (IST)'
-          ];
-
-          rows = validRegs.map((reg) => {
-            const p = (reg.participants && reg.participants[0]) || null;
-            return [
-              reg.id,
-              escapeCsvCell(p?.full_name || reg.leader_name),
-              escapeCsvCell(p?.roll_number || '—'),
-              escapeCsvCell(p?.department || '—'),
-              escapeCsvCell(p?.year_of_study || '—'),
-              escapeCsvCell(p?.section || '—'),
-              escapeCsvCell(reg.college_name),
-              reg.leader_email,
-              reg.leader_phone,
-              reg.registration_type,
-              String(reg.total_fee),
-              reg.payment_status.toUpperCase(),
-              reg.registration_status.toUpperCase(),
-              escapeCsvCell(reg.transaction_id || '—'),
-              escapeCsvCell(formatCreatedAtIST(reg.created_at))
-            ];
-          });
-        } else {
-          headers = [
-            'Registration ID',
-            'Team Name',
-            'Team Leader Name',
-            'Leader Email',
-            'Leader Phone',
-            'College Name',
-            'College Location',
-            'Participant Count',
-            'Team Members Roster',
-            'Registration Type',
-            'Total Fee (INR)',
-            'Payment Status',
-            'Registration Status',
-            'UTR / Transaction ID',
-            'Registered Date & Time (IST)'
-          ];
-
-          rows = validRegs.map((reg) => {
-            const roster = (reg.participants || [])
-              .map((p, idx) => `P${idx + 1}: ${p.full_name} (${p.roll_number}, ${p.department}, Yr:${p.year_of_study}, Sec:${p.section})`)
-              .join(' | ') || '—';
-
-            return [
-              reg.id,
-              escapeCsvCell(reg.team_name || '—'),
-              escapeCsvCell(reg.leader_name),
-              reg.leader_email,
-              reg.leader_phone,
-              escapeCsvCell(reg.college_name),
-              escapeCsvCell(reg.college_location || '—'),
-              String(reg.participant_count),
-              escapeCsvCell(roster),
-              reg.registration_type,
-              String(reg.total_fee),
-              reg.payment_status.toUpperCase(),
-              reg.registration_status.toUpperCase(),
-              escapeCsvCell(reg.transaction_id || '—'),
-              escapeCsvCell(formatCreatedAtIST(reg.created_at))
-            ];
-          });
-        }
-
-        const csvString = [headers.map(escapeCsvCell).join(','), ...rows.map((r) => r.join(','))].join('\r\n');
-        const filename = `FINXYORA_${targetEvent.title.replace(/[^a-zA-Z0-9]/g, '_')}_Registrations_${new Date().toISOString().slice(0, 10)}.csv`;
-
-        return new NextResponse(csvString, {
-          headers: {
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="${filename}"`
-          }
-        });
+      if (eventsToExport.length === 0) {
+        return NextResponse.json({ success: false, error: `Event "${eventId}" not found` }, { status: 404 });
       }
 
-      // CASE B: Single Excel Workbook (.xlsx) with Separate Worksheets for Each Event
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'FINXYORA 2K26 Festival Management';
+      workbook.creator = 'Finxyora 2K26 Festival Management';
       workbook.lastModifiedBy = session.username;
       workbook.created = new Date();
       workbook.modified = new Date();
 
-      for (const ev of allDbEvents) {
-        // Sanitize sheet name (Excel limits sheet names to 31 chars and bans \ / ? * [ ] :)
+      // -----------------------------------------------------------------------
+      // SHEET 1: Executive Overview & Financial Totals
+      // -----------------------------------------------------------------------
+      const summarySheet = workbook.addWorksheet('Overview & Totals', {
+        properties: { tabColor: { argb: 'FF0284C7' } }
+      });
+      summarySheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: true }];
+
+      summarySheet.columns = [
+        { header: 'Event ID', key: 'id', width: 16 },
+        { header: 'Competition Name', key: 'title', width: 26 },
+        { header: 'Category', key: 'category', width: 18 },
+        { header: 'Format', key: 'format', width: 14 },
+        { header: 'Fee (₹)', key: 'fee', width: 12 },
+        { header: 'Total Registrations', key: 'total_regs', width: 20 },
+        { header: 'Verified / Paid', key: 'paid_regs', width: 16 },
+        { header: 'Total Delegates', key: 'delegates', width: 16 },
+        { header: 'Verified Revenue (₹)', key: 'revenue', width: 22 }
+      ];
+
+      // Style summary header
+      const summaryHeader = summarySheet.getRow(1);
+      summaryHeader.height = 28;
+      summaryHeader.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Calibri' };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0F172A' } // Sleek Navy Slate #0F172A
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          bottom: { style: 'medium', color: { argb: 'FF38BDF8' } }
+        };
+      });
+
+      let summaryDataStartRow = 2;
+      for (const ev of eventsToExport) {
+        const isSolo = Number(ev.max_participants) <= 1;
+        const regRecords = await getAllEventRegistrations({ eventId: ev.id, registrationType });
+        const totalRegs = regRecords.length;
+        const paidRegs = regRecords.filter(
+          (r) => ['verified', 'paid', 'successful'].includes(r.payment_status.toLowerCase()) && r.registration_status !== 'cancelled'
+        ).length;
+        const totalDelegates = regRecords.reduce((acc, r) => acc + Number(r.participant_count || 1), 0);
+        const verifiedRevenue = regRecords
+          .filter((r) => ['verified', 'paid', 'successful'].includes(r.payment_status.toLowerCase()) && r.registration_status !== 'cancelled')
+          .reduce((acc, r) => acc + Number(r.total_fee || 0), 0);
+
+        const row = summarySheet.addRow({
+          id: ev.id,
+          title: ev.title,
+          category: ev.category,
+          format: isSolo ? 'Solo / Individual' : `Team (max ${ev.max_participants})`,
+          fee: ev.registration_fee,
+          total_regs: totalRegs,
+          paid_regs: paidRegs,
+          delegates: totalDelegates,
+          revenue: verifiedRevenue
+        });
+
+        row.alignment = { vertical: 'middle' };
+        row.getCell('fee').numFmt = '₹#,##0';
+        row.getCell('revenue').numFmt = '₹#,##0';
+        row.getCell('total_regs').alignment = { horizontal: 'center' };
+        row.getCell('paid_regs').alignment = { horizontal: 'center' };
+        row.getCell('delegates').alignment = { horizontal: 'center' };
+      }
+
+      const summaryEndRow = summarySheet.rowCount;
+
+      // Add Grand Total Row to Summary Sheet
+      if (summaryEndRow >= summaryDataStartRow) {
+        const grandTotalRow = summarySheet.addRow({
+          id: '—',
+          title: 'GRAND TOTAL',
+          category: 'All Events',
+          format: '—',
+          fee: 0,
+          total_regs: { formula: `SUM(F${summaryDataStartRow}:F${summaryEndRow})` },
+          paid_regs: { formula: `SUM(G${summaryDataStartRow}:G${summaryEndRow})` },
+          delegates: { formula: `SUM(H${summaryDataStartRow}:H${summaryEndRow})` },
+          revenue: { formula: `SUM(I${summaryDataStartRow}:I${summaryEndRow})` }
+        });
+
+        grandTotalRow.height = 24;
+        grandTotalRow.eachCell((cell) => {
+          cell.font = { bold: true, size: 10, color: { argb: 'FF0F172A' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFE0F2FE' } // Light Sky Blue Tint #E0F2FE
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF0284C7' } },
+            bottom: { style: 'double', color: { argb: 'FF0284C7' } }
+          };
+        });
+        grandTotalRow.getCell('fee').value = '';
+        grandTotalRow.getCell('revenue').numFmt = '₹#,##0';
+      }
+
+      summarySheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: summarySheet.columns.length }
+      };
+
+      // -----------------------------------------------------------------------
+      // SHEETS 2+: Individual Event Worksheets
+      // -----------------------------------------------------------------------
+      for (const ev of eventsToExport) {
         const safeTitle = ev.title.replace(/[\\/?*\[\]:]/g, ' ').trim().slice(0, 31) || `Event_${ev.id}`;
         const worksheet = workbook.addWorksheet(safeTitle, {
           properties: { tabColor: { argb: 'FF0284C7' } }
@@ -179,7 +177,7 @@ export async function GET(req: NextRequest) {
             { header: 'Candidate Email', key: 'email', width: 26 },
             { header: 'Candidate Phone', key: 'phone', width: 16 },
             { header: 'Registration Type', key: 'reg_type', width: 16 },
-            { header: 'Fee (₹)', key: 'fee', width: 12 },
+            { header: 'Fee (₹)', key: 'fee', width: 14 },
             { header: 'Payment Status', key: 'pay_status', width: 16 },
             { header: 'Status', key: 'status', width: 14 },
             { header: 'UTR / Transaction ID', key: 'utr', width: 22 },
@@ -222,22 +220,22 @@ export async function GET(req: NextRequest) {
           };
         });
 
-        // Enable filters on header row
+        // Enable auto-filter
         worksheet.autoFilter = {
           from: { row: 1, column: 1 },
           to: { row: 1, column: worksheet.columns.length }
         };
 
-        // Query Registrations for this specific event
+        // Query Registrations for this event
         const regRecords = await getAllEventRegistrations({ eventId: ev.id, registrationType });
         const enriched = await Promise.all(regRecords.map((r) => getEventRegistration(r.id)));
         const validRegs = enriched.filter(Boolean) as NonNullable<Awaited<ReturnType<typeof getEventRegistration>>>[];
 
-        // Populate Rows
+        const eventDataStartRow = 2;
         validRegs.forEach((reg) => {
           if (isSolo) {
             const p = (reg.participants && reg.participants[0]) || null;
-            worksheet.addRow({
+            const r = worksheet.addRow({
               id: reg.id,
               candidate_name: p?.full_name || reg.leader_name,
               roll_number: p?.roll_number || '—',
@@ -248,18 +246,19 @@ export async function GET(req: NextRequest) {
               email: reg.leader_email,
               phone: reg.leader_phone,
               reg_type: reg.registration_type,
-              fee: reg.total_fee,
+              fee: Number(reg.total_fee || 0),
               pay_status: reg.payment_status.toUpperCase(),
               status: reg.registration_status.toUpperCase(),
               utr: reg.transaction_id || '—',
               created_at: formatCreatedAtIST(reg.created_at)
             });
+            r.getCell('fee').numFmt = '₹#,##0';
           } else {
             const roster = (reg.participants || [])
               .map((p, idx) => `P${idx + 1}: ${p.full_name} (${p.roll_number}, ${p.department}, Yr:${p.year_of_study}, Sec:${p.section})`)
               .join(' | ') || '—';
 
-            worksheet.addRow({
+            const r = worksheet.addRow({
               id: reg.id,
               team_name: reg.team_name || '—',
               leader_name: reg.leader_name,
@@ -267,19 +266,91 @@ export async function GET(req: NextRequest) {
               leader_phone: reg.leader_phone,
               college_name: reg.college_name || '—',
               college_location: reg.college_location || '—',
-              member_count: reg.participant_count,
+              member_count: Number(reg.participant_count || 1),
               roster: roster,
               reg_type: reg.registration_type,
-              fee: reg.total_fee,
+              fee: Number(reg.total_fee || 0),
               pay_status: reg.payment_status.toUpperCase(),
               status: reg.registration_status.toUpperCase(),
               utr: reg.transaction_id || '—',
               created_at: formatCreatedAtIST(reg.created_at)
             });
+            r.getCell('fee').numFmt = '₹#,##0';
           }
         });
 
-        // Adjust column widths based on maximum content length
+        const eventEndRow = worksheet.rowCount;
+
+        // Add a bold TOTAL row at the bottom of the worksheet
+        if (eventEndRow >= eventDataStartRow) {
+          if (isSolo) {
+            const totalRow = worksheet.addRow({
+              id: 'TOTAL',
+              candidate_name: `Total Candidates: ${validRegs.length}`,
+              roll_number: '',
+              department: '',
+              year_of_study: '',
+              section: '',
+              college_name: '',
+              email: '',
+              phone: '',
+              reg_type: '',
+              fee: { formula: `SUM(K${eventDataStartRow}:K${eventEndRow})` },
+              pay_status: '',
+              status: '',
+              utr: '',
+              created_at: ''
+            });
+            totalRow.height = 22;
+            totalRow.eachCell((cell) => {
+              cell.font = { bold: true, size: 10, color: { argb: 'FF0F172A' } };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF1F5F9' }
+              };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+                bottom: { style: 'double', color: { argb: 'FF0F172A' } }
+              };
+            });
+            totalRow.getCell('fee').numFmt = '₹#,##0';
+          } else {
+            const totalRow = worksheet.addRow({
+              id: 'TOTAL',
+              team_name: `Total Teams: ${validRegs.length}`,
+              leader_name: '',
+              leader_email: '',
+              leader_phone: '',
+              college_name: '',
+              college_location: '',
+              member_count: { formula: `SUM(H${eventDataStartRow}:H${eventEndRow})` },
+              roster: '',
+              reg_type: '',
+              fee: { formula: `SUM(K${eventDataStartRow}:K${eventEndRow})` },
+              pay_status: '',
+              status: '',
+              utr: '',
+              created_at: ''
+            });
+            totalRow.height = 22;
+            totalRow.eachCell((cell) => {
+              cell.font = { bold: true, size: 10, color: { argb: 'FF0F172A' } };
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF1F5F9' }
+              };
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+                bottom: { style: 'double', color: { argb: 'FF0F172A' } }
+              };
+            });
+            totalRow.getCell('fee').numFmt = '₹#,##0';
+          }
+        }
+
+        // Adjust column widths
         worksheet.columns.forEach((col) => {
           let maxLen = col.header ? String(col.header).length : 12;
           col.eachCell?.({ includeEmpty: false }, (cell) => {
@@ -291,7 +362,9 @@ export async function GET(req: NextRequest) {
       }
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const filename = `Finxyora_Event_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const filename = eventId
+        ? `Finxyora_${(eventsToExport[0]?.title || 'Event').replace(/[^a-zA-Z0-9]/g, '_')}_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`
+        : `Finxyora_Event_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
@@ -301,79 +374,14 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ==========================================
-    // 2. STALL REGISTRATIONS EXPORT (.XLSX)
-    // ==========================================
+    // =========================================================================
+    // 2. STALL REGISTRATIONS REPORT (EXCEL .XLSX WITH TOTALS & IST DATES)
+    // =========================================================================
     if (type === 'stalls') {
       const bookings: StallBookingRecord[] = await getAllStallBookings({ registrationType });
 
-      // Note: College Name is intentionally EXCLUDED from stall report per requirements.
-      // External stall applicants are identified as 'Outsider', not 'Student'.
-      // Created At timestamp formatted with weekday, date, and time in Asia/Kolkata timezone.
-      if (format === 'csv') {
-        const headers = [
-          'Registration ID',
-          'Applicant Name',
-          'Applicant Type',
-          'Contact Email',
-          'Contact Phone',
-          'Stall Category',
-          'Booking Duration',
-          'Selected Day / Dates',
-          'Products / Services',
-          'Stalls Requested',
-          'Electricity Included',
-          'Amount Payable (INR)',
-          'Payment Status',
-          'Refund Status',
-          'Registration Status',
-          'UTR / Transaction Ref',
-          'Registration Type',
-          'Created At'
-        ];
-
-        const rows = bookings.map((b: StallBookingRecord) => {
-          const cleanApplicantType = formatApplicantType(b.applicant_type, b.stall_category);
-          const durationDays = b.duration_days || 1;
-          const selectedDay = b.selected_day || (durationDays === 2 ? 'Both Days' : '1 Day');
-          const dayDates = b.booking_dates ? `${selectedDay} (${b.booking_dates})` : selectedDay;
-
-          return [
-            b.id,
-            escapeCsvCell(b.contact_name),
-            cleanApplicantType,
-            b.contact_email,
-            b.contact_phone,
-            escapeCsvCell(b.stall_category),
-            `${durationDays} Day${durationDays > 1 ? 's' : ''}`,
-            escapeCsvCell(dayDates),
-            escapeCsvCell(b.products_services),
-            String(b.stalls_requested),
-            b.has_electricity ? 'YES' : 'NO',
-            String(b.total_amount),
-            (b.payment_status || 'submitted').toUpperCase(),
-            (b.refund_status || 'NONE').toUpperCase(),
-            (b.status || 'pending').toUpperCase(),
-            escapeCsvCell(b.transaction_id || '—'),
-            b.registration_type,
-            escapeCsvCell(formatCreatedAtIST(b.created_at))
-          ].join(',');
-        });
-
-        const csvContent = [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
-        const filename = `Finxyora_Stall_Registrations_${new Date().toISOString().slice(0, 10)}.csv`;
-
-        return new NextResponse(csvContent, {
-          headers: {
-            'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="${filename}"`
-          }
-        });
-      }
-
-      // Default & Primary Export: Downloadable genuine Excel (.xlsx) workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'FINXYORA 2K26 Festival Management';
+      workbook.creator = 'Finxyora 2K26 Festival Management';
       workbook.lastModifiedBy = session.username;
       workbook.created = new Date();
       workbook.modified = new Date();
@@ -384,7 +392,7 @@ export async function GET(req: NextRequest) {
 
       worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: true }];
 
-      // Define columns: College Name is intentionally EXCLUDED
+      // Define columns: College Name is intentionally EXCLUDED per requirements
       worksheet.columns = [
         { header: 'Registration ID', key: 'id', width: 18 },
         { header: 'Applicant Name', key: 'contact_name', width: 24 },
@@ -429,6 +437,7 @@ export async function GET(req: NextRequest) {
         to: { row: 1, column: worksheet.columns.length }
       };
 
+      const dataStartRow = 2;
       // Populate Rows
       bookings.forEach((b: StallBookingRecord) => {
         const cleanApplicantType = formatApplicantType(b.applicant_type, b.stall_category);
@@ -436,7 +445,7 @@ export async function GET(req: NextRequest) {
         const selectedDay = b.selected_day || (durationDays === 2 ? 'Both Days' : '1 Day');
         const dayDates = b.booking_dates ? `${selectedDay} (${b.booking_dates})` : selectedDay;
 
-        worksheet.addRow({
+        const r = worksheet.addRow({
           id: b.id,
           contact_name: b.contact_name,
           applicant_type: cleanApplicantType,
@@ -447,7 +456,7 @@ export async function GET(req: NextRequest) {
           selected_day: dayDates,
           entity_name: b.entity_name || '—',
           products_services: b.products_services || '—',
-          stalls_requested: b.stalls_requested || 1,
+          stalls_requested: Number(b.stalls_requested || 1),
           has_electricity: b.has_electricity ? 'Yes' : 'No',
           total_amount: Number(b.total_amount || 0),
           payment_status: (b.payment_status || 'submitted').toUpperCase(),
@@ -457,9 +466,54 @@ export async function GET(req: NextRequest) {
           reg_type: b.registration_type || 'REAL',
           created_at: formatCreatedAtIST(b.created_at)
         });
+
+        r.getCell('total_amount').numFmt = '₹#,##0';
+        r.getCell('stalls_requested').alignment = { horizontal: 'center' };
       });
 
-      // Adjust column widths based on maximum content length
+      const dataEndRow = worksheet.rowCount;
+
+      // Add bold TOTAL row to Stall Report
+      if (dataEndRow >= dataStartRow) {
+        const totalRow = worksheet.addRow({
+          id: 'TOTAL',
+          contact_name: `Total Bookings: ${bookings.length}`,
+          applicant_type: '',
+          contact_email: '',
+          contact_phone: '',
+          stall_category: '',
+          duration: '',
+          selected_day: '',
+          entity_name: '',
+          products_services: '',
+          stalls_requested: { formula: `SUM(K${dataStartRow}:K${dataEndRow})` },
+          has_electricity: '',
+          total_amount: { formula: `SUM(M${dataStartRow}:M${dataEndRow})` },
+          payment_status: '',
+          refund_status: '',
+          status: '',
+          utr: '',
+          reg_type: '',
+          created_at: ''
+        });
+
+        totalRow.height = 24;
+        totalRow.eachCell((cell) => {
+          cell.font = { bold: true, size: 10, color: { argb: 'FF065F46' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD1FAE5' } // Soft Emerald Tint #D1FAE5
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF059669' } },
+            bottom: { style: 'double', color: { argb: 'FF059669' } }
+          };
+        });
+        totalRow.getCell('total_amount').numFmt = '₹#,##0';
+      }
+
+      // Adjust column widths
       worksheet.columns.forEach((col) => {
         let maxLen = col.header ? String(col.header).length : 12;
         col.eachCell?.({ includeEmpty: false }, (cell) => {

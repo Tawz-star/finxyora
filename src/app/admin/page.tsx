@@ -12,12 +12,14 @@ import {
   AlertCircle,
   CheckCircle2,
   FileSpreadsheet,
+  Download,
   ArrowRight,
   ShieldCheck,
   Activity,
   DollarSign,
   RotateCcw,
-  Clock
+  Clock,
+  Filter
 } from 'lucide-react';
 
 interface MetricsData {
@@ -74,13 +76,15 @@ interface AuditLog {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const [filter, setFilter] = useState<'REAL' | 'ALL'>('REAL');
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/admin/dashboard')
+    setLoading(true);
+    fetch(`/api/admin/dashboard?filter=${filter}`)
       .then(async (res) => {
         if (res.status === 401) {
           router.push('/admin/login');
@@ -93,9 +97,9 @@ export default function AdminDashboardPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, filter]);
 
-  if (loading) {
+  if (loading && !metrics) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -127,33 +131,62 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8 animate-fadeIn">
       
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Top Header & Quick Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Festival Control Center
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Festival Control Center
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+              FINXYORA 2K26
+            </span>
+          </div>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time intra-collegiate registrations, verified financial revenue, and inventory ledger.
+            Real-time verified collections, automated reconciliation, and downloadable Excel reporting.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Data Filter Selector */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+            <button
+              onClick={() => setFilter('REAL')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                filter === 'REAL'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Real Data Only
+            </button>
+            <button
+              onClick={() => setFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                filter === 'ALL'
+                  ? 'bg-sky-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All Records
+            </button>
+          </div>
+
           <Link
             href="/admin/events"
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-colors"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-colors"
           >
             Manage Events
           </Link>
           <Link
             href="/admin/stalls"
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
           >
             Manage Stalls
           </Link>
           <Link
             href="/admin/payments"
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 hover:border-sky-500/40 transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 hover:border-sky-500/40 transition-colors flex items-center gap-1.5"
           >
             <CreditCard className="w-3.5 h-3.5 text-sky-400" />
             Reconcile Payments
@@ -164,7 +197,7 @@ export default function AdminDashboardPage() {
       {/* TOP 4 KEY STAT CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
-        {/* Total Registrations */}
+        {/* Card 1: Event Registrations */}
         <Link
           href="/admin/registrations"
           className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
@@ -183,25 +216,32 @@ export default function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* Net Collected Revenue */}
+        {/* Card 2: Total Verified Revenue (Clear, positive, never showing minus amounts) */}
         <Link
           href="/admin/payments"
           className="p-6 rounded-2xl glass-card border border-emerald-500/30 hover:border-emerald-400/60 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
         >
           <div className="flex items-center justify-between text-slate-400 group-hover:text-emerald-300 transition-colors">
-            <span className="text-xs font-bold uppercase tracking-wider">Net Collected Revenue</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Total Verified Revenue</span>
             <DollarSign className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="text-3xl font-black text-emerald-300 font-mono">
-            ₹{netCollections.toLocaleString('en-IN')}
+            ₹{metrics.verifiedCollections.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <span>Verified: <strong className="text-white">₹{metrics.verifiedCollections.toLocaleString('en-IN')}</strong></span>
-            <span className="text-rose-400 font-semibold">Refunds: -₹{metrics.completedRefunds.toLocaleString('en-IN')}</span>
+            <span className="text-emerald-400 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Verified Funds Captured
+            </span>
+            {metrics.completedRefunds > 0 ? (
+              <span className="text-slate-300 font-semibold">Net: ₹{netCollections.toLocaleString('en-IN')}</span>
+            ) : (
+              <span className="text-slate-400">Refunds: ₹0 (No Deductions)</span>
+            )}
           </div>
         </Link>
 
-        {/* Stall Bookings */}
+        {/* Card 3: Stall Bookings */}
         <Link
           href="/admin/stalls"
           className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-indigo-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
@@ -220,69 +260,143 @@ export default function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* Pending Payments — Displayed Separately */}
+        {/* Card 4: Pending Payments (Separated from collected revenue) */}
         <Link
           href="/admin/payments"
           className="p-6 rounded-2xl glass-card border border-amber-500/20 hover:border-amber-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
         >
           <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-300 transition-colors">
-            <span className="text-xs font-bold uppercase tracking-wider">Pending Payments</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Pending Verification</span>
             <Clock className="w-5 h-5 text-amber-400" />
           </div>
           <div className="text-3xl font-black text-amber-300 font-mono">
             ₹{metrics.pendingCollections.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
-            <span className="text-amber-300 font-semibold">{metrics.pendingPayments} Awaiting Verification</span>
-            <span className="text-slate-400">{metrics.successfulPayments} Verified</span>
+            <span className="text-amber-300 font-semibold">{metrics.pendingPayments} Awaiting Bank Review</span>
+            <span className="text-slate-500 text-[10px]">Excluded From Revenue</span>
           </div>
         </Link>
 
       </div>
 
-      {/* DEDICATED FINANCIAL RECONCILIATION SUMMARY */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+      {/* DEDICATED OFFICIAL EXCEL REPORTING CENTER (.XLSX) */}
+      <div className="p-6 rounded-3xl glass-panel border border-sky-500/30 space-y-4 shadow-2xl bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-slate-950/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center gap-2.5">
+            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h2 className="text-sm font-bold text-white tracking-tight">Official Festival Excel Reports (.xlsx)</h2>
+              <p className="text-xs text-slate-400">Download formatted genuine Excel workbooks to review complete registration ledgers and calculate totals easily.</p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-300 border border-sky-500/30 self-start sm:self-auto font-mono">
+            GENUINE EXCEL FORMAT (.XLSX)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: Event Registrations Excel */}
+          <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-sky-500/40 transition-colors">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Trophy className="w-4 h-4 text-sky-400" />
+                  Event Registrations Workbook
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 font-mono">
+                  Multi-Worksheet + Formulas
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Contains an <strong>Overview &amp; Totals</strong> executive summary sheet, followed by individual worksheets for all 6 competitions. Includes candidate details, team rosters, payment statuses, and automatic Excel SUM formulas for total registrations and fee calculations.
+              </p>
+            </div>
+
+            <a
+              href={`/api/admin/export?type=events&registrationType=${filter}`}
+              download
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center gap-2 shadow-lg shadow-sky-500/25 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Event Registrations (.xlsx)</span>
+            </a>
+          </div>
+
+          {/* Card 2: Stall Bookings Excel */}
+          <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition-colors">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Store className="w-4 h-4 text-emerald-400" />
+                  Stall Registrations Workbook
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 font-mono">
+                  Outsider / Student + Totals
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Complete stall inventory and booking ledger with contact information, accurate <strong>Outsider vs. Student</strong> classification, booking duration, selected dates, electricity, IST timestamps, and automatic SUM formulas. (College name excluded per policy).
+              </p>
+            </div>
+
+            <a
+              href={`/api/admin/export?type=stalls&registrationType=${filter}`}
+              download
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/25 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Stall Registrations (.xlsx)</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* FINANCIAL RECONCILIATION BREAKDOWN SUMMARY */}
+      <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-emerald-400" />
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Financial Revenue Breakdown</h2>
           </div>
           <span className="text-[10px] text-slate-400 font-mono">
-            Database Engine: {metrics.databaseEngine} &bull; Only Verified Funds Counted In Revenue
+            Database Engine: {metrics.databaseEngine} &bull; Only Verified Collections Included In Revenue
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="space-y-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-400">Total Verified Collections</span>
-            <div className="text-lg font-black text-white font-mono">
+            <div className="text-xl font-black text-white font-mono">
               ₹{metrics.verifiedCollections.toLocaleString('en-IN')}
             </div>
-            <span className="text-[10px] text-emerald-400 block">Funds captured &amp; verified</span>
+            <span className="text-[10px] text-emerald-400 block">{metrics.successfulPayments} verified payments captured in bank</span>
           </div>
 
-          <div className="space-y-1">
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-400">Completed Refunds</span>
-            <div className="text-lg font-black text-rose-400 font-mono">
+            <div className="text-xl font-black text-slate-200 font-mono">
               ₹{metrics.completedRefunds.toLocaleString('en-IN')}
             </div>
-            <span className="text-[10px] text-rose-400/80 block">Completed refunds deducted</span>
+            <span className="text-[10px] text-slate-400 block">
+              {metrics.completedRefunds > 0 ? 'Deducted from net collections' : 'Zero refunds issued (₹0 deductions)'}
+            </span>
           </div>
 
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-emerald-400">Net Collected Revenue</span>
-            <div className="text-lg font-black text-emerald-300 font-mono">
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-emerald-400">Net Retained Revenue</span>
+            <div className="text-xl font-black text-emerald-300 font-mono">
               ₹{netCollections.toLocaleString('en-IN')}
             </div>
-            <span className="text-[10px] text-slate-400 block">Verified Collections − Refunds</span>
+            <span className="text-[10px] text-slate-400 block">Total Verified Collections − Completed Refunds</span>
           </div>
 
-          <div className="space-y-1">
-            <span className="text-[10px] uppercase font-bold text-amber-400">Pending Payments (Separate)</span>
-            <div className="text-lg font-black text-amber-300 font-mono">
+          <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-amber-400">Pending Payments (Separated)</span>
+            <div className="text-xl font-black text-amber-300 font-mono">
               ₹{metrics.pendingCollections.toLocaleString('en-IN')}
             </div>
-            <span className="text-[10px] text-amber-400/80 block">{metrics.pendingPayments} unconfirmed / awaiting review</span>
+            <span className="text-[10px] text-amber-400/80 block">{metrics.pendingPayments} unconfirmed claims awaiting verification</span>
           </div>
         </div>
       </div>
