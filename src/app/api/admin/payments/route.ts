@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
-import { getAllPayments, refundPayment, verifyPayment, rejectPayment } from '@/lib/db';
+import { getAllPayments, refundPayment, verifyPayment, rejectPayment, retryPaymentEmail } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,16 +46,36 @@ export async function POST(req: NextRequest) {
       if (!paymentId || !reason) {
         return NextResponse.json({ success: false, error: 'Payment ID and rejection reason are required' }, { status: 400 });
       }
-      await rejectPayment(paymentId, session.username, reason);
-      return NextResponse.json({ success: true, message: 'Payment rejected and applicant notified.' });
+      const result = await rejectPayment(paymentId, session.username, reason);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        result
+      });
     }
 
     if (action === 'refund') {
       if (!paymentId) {
         return NextResponse.json({ success: false, error: 'Payment ID is required' }, { status: 400 });
       }
-      await refundPayment(paymentId, session.username, reason || 'Admin initiated refund');
-      return NextResponse.json({ success: true, message: 'Payment successfully marked as refunded.' });
+      const result = await refundPayment(paymentId, session.username, reason || 'Admin initiated refund');
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        result
+      });
+    }
+
+    if (action === 'retry_email') {
+      if (!paymentId) {
+        return NextResponse.json({ success: false, error: 'Payment ID is required' }, { status: 400 });
+      }
+      const result = await retryPaymentEmail(paymentId, session.username);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        result
+      });
     }
 
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });

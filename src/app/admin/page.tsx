@@ -16,10 +16,13 @@ import {
   ShieldCheck,
   Activity,
   DollarSign,
-  RotateCcw
+  RotateCcw,
+  Clock
 } from 'lucide-react';
 
 interface MetricsData {
+  totalRealRegistrations: number;
+  totalTestRegistrations: number;
   totalEventRegs: number;
   confirmedEventRegs: number;
   totalConfirmedParticipants: number;
@@ -27,10 +30,21 @@ interface MetricsData {
   studentStallBookings: number;
   vendorStallBookings: number;
   verifiedCollections: number;
+  completedRefunds: number;
+  netCollections: number;
+  pendingRefunds: number;
+  submittedCollections: number;
+  pendingCollections: number;
   refundedCollections: number;
   pendingPayments: number;
   successfulPayments: number;
+  verifiedPayments: number;
+  submittedPayments: number;
   failedPayments: number;
+  refundedPayments: number;
+  activeFilter: 'REAL' | 'ALL' | 'TEST';
+  isCentralizedDatabase: boolean;
+  databaseEngine: string;
   eventsBreakdown: Array<{
     id: string;
     title: string;
@@ -108,7 +122,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const netCollections = metrics.verifiedCollections - metrics.refundedCollections;
+  const netCollections = metrics.netCollections ?? Math.max(0, metrics.verifiedCollections - metrics.completedRefunds);
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -120,7 +134,7 @@ export default function AdminDashboardPage() {
             Festival Control Center
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time intra-collegiate registrations, financial collections, and inventory ledger.
+            Real-time intra-collegiate registrations, verified financial revenue, and inventory ledger.
           </p>
         </div>
 
@@ -169,23 +183,21 @@ export default function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* Net Collections */}
+        {/* Net Collected Revenue */}
         <Link
           href="/admin/payments"
-          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-emerald-500/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+          className="p-6 rounded-2xl glass-card border border-emerald-500/30 hover:border-emerald-400/60 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
         >
           <div className="flex items-center justify-between text-slate-400 group-hover:text-emerald-300 transition-colors">
-            <span className="text-xs font-bold uppercase tracking-wider">Verified Revenue</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Net Collected Revenue</span>
             <DollarSign className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="text-3xl font-black text-emerald-300 font-mono">
             ₹{netCollections.toLocaleString('en-IN')}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Gross: ₹{metrics.verifiedCollections}</span>
-            {metrics.refundedCollections > 0 && (
-              <span className="text-rose-400 font-semibold">Refunds: ₹{metrics.refundedCollections}</span>
-            )}
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+            <span>Verified: <strong className="text-white">₹{metrics.verifiedCollections.toLocaleString('en-IN')}</strong></span>
+            <span className="text-rose-400 font-semibold">Refunds: -₹{metrics.completedRefunds.toLocaleString('en-IN')}</span>
           </div>
         </Link>
 
@@ -208,25 +220,71 @@ export default function AdminDashboardPage() {
           </div>
         </Link>
 
-        {/* Payments Settlement Status */}
+        {/* Pending Payments — Displayed Separately */}
         <Link
           href="/admin/payments"
-          className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
+          className="p-6 rounded-2xl glass-card border border-amber-500/20 hover:border-amber-400/50 hover:bg-slate-900/60 transition-all cursor-pointer block space-y-2 group"
         >
-          <div className="flex items-center justify-between text-slate-400 group-hover:text-sky-300 transition-colors">
-            <span className="text-xs font-bold uppercase tracking-wider">Settlement Ledger</span>
-            <CreditCard className="w-5 h-5 text-sky-400" />
+          <div className="flex items-center justify-between text-slate-400 group-hover:text-amber-300 transition-colors">
+            <span className="text-xs font-bold uppercase tracking-wider">Pending Payments</span>
+            <Clock className="w-5 h-5 text-amber-400" />
           </div>
-          <div className="text-3xl font-black text-sky-300 font-mono">
-            {metrics.successfulPayments}
-            <span className="text-xs text-slate-400 font-normal ml-2">Successful</span>
+          <div className="text-3xl font-black text-amber-300 font-mono">
+            ₹{metrics.pendingCollections.toLocaleString('en-IN')}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-            <span className="text-amber-300 font-semibold">Pending: {metrics.pendingPayments}</span>
-            <span className="text-rose-400 font-semibold">Declined: {metrics.failedPayments}</span>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+            <span className="text-amber-300 font-semibold">{metrics.pendingPayments} Awaiting Verification</span>
+            <span className="text-slate-400">{metrics.successfulPayments} Verified</span>
           </div>
         </Link>
 
+      </div>
+
+      {/* DEDICATED FINANCIAL RECONCILIATION SUMMARY */}
+      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Financial Revenue Breakdown</h2>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono">
+            Database Engine: {metrics.databaseEngine} &bull; Only Verified Funds Counted In Revenue
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Total Verified Collections</span>
+            <div className="text-lg font-black text-white font-mono">
+              ₹{metrics.verifiedCollections.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10px] text-emerald-400 block">Funds captured &amp; verified</span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Completed Refunds</span>
+            <div className="text-lg font-black text-rose-400 font-mono">
+              ₹{metrics.completedRefunds.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10px] text-rose-400/80 block">Completed refunds deducted</span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-emerald-400">Net Collected Revenue</span>
+            <div className="text-lg font-black text-emerald-300 font-mono">
+              ₹{netCollections.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10px] text-slate-400 block">Verified Collections − Refunds</span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] uppercase font-bold text-amber-400">Pending Payments (Separate)</span>
+            <div className="text-lg font-black text-amber-300 font-mono">
+              ₹{metrics.pendingCollections.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10px] text-amber-400/80 block">{metrics.pendingPayments} unconfirmed / awaiting review</span>
+          </div>
+        </div>
       </div>
 
       {/* TWO COLUMN SECTION: EVENT BREAKDOWN & STALL INVENTORY */}

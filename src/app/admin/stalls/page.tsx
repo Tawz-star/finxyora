@@ -122,7 +122,7 @@ export default function AdminStallsPage() {
           className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 self-start sm:self-auto shadow-md shadow-emerald-600/20"
         >
           <FileSpreadsheet className="w-4 h-4" />
-          <span>Export Stalls CSV</span>
+          <span>Export Stalls (.xlsx)</span>
         </a>
       </div>
 

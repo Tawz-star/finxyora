@@ -83,10 +83,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href="/api/admin/export?type=stalls"
                   download
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-slate-700 hover:border-emerald-500/30 flex items-center gap-1.5 transition-colors"
-                  title="Export all stall bookings as CSV"
+                  title="Export all stall bookings as Excel workbook (.xlsx)"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Export Stalls CSV</span>
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Export Stalls (.xlsx)</span>
                 </a>
               </div>
 

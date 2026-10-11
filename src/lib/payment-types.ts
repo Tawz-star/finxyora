@@ -4,7 +4,8 @@ export type PaymentStatus =
   | 'PAID'
   | 'FAILED'
   | 'EXPIRED'
-  | 'REVIEW_REQUIRED';
+  | 'REVIEW_REQUIRED'
+  | 'REFUNDED';
 
 export interface PaymentRecord {
   id: string;
@@ -26,6 +27,11 @@ export interface PaymentRecord {
   rejection_reason?: string | null;
   refunded_at?: string | null;
   refund_reason?: string | null;
+  refund_status?: string | null;
+  refund_amount?: number | null;
+  email_status?: string | null;
+  email_sent_at?: string | null;
+  email_error?: string | null;
   created_at: string;
   updated_at?: string;
   item_title?: string;
@@ -35,6 +41,7 @@ export interface PaymentRecord {
 export function normalizePaymentStatus(status?: string | null): PaymentStatus {
   if (!status) return 'PENDING';
   const s = status.toUpperCase();
+  if (s === 'REFUNDED') return 'REFUNDED';
   if (s === 'PAID' || s === 'VERIFIED' || s === 'SUCCESSFUL' || s === 'CONFIRMED') return 'PAID';
   if (s === 'REVIEW_REQUIRED' || s === 'SUBMITTED') return 'REVIEW_REQUIRED';
   if (s === 'VERIFYING' || s === 'PROCESSING') return 'VERIFYING';

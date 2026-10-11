@@ -96,7 +96,7 @@ export default function AdminPaymentsPage() {
     fetchPayments();
   }, [fetchPayments]);
 
-  const handleAction = async (action: 'verify' | 'reject' | 'refund', paymentId: string, reasonOrNotes?: string) => {
+  const handleAction = async (action: 'verify' | 'reject' | 'refund' | 'retry_email', paymentId: string, reasonOrNotes?: string) => {
     setActionLoading(paymentId);
     setError(null);
     setSuccessMsg(null);
@@ -467,6 +467,39 @@ export default function AdminPaymentsPage() {
                           {isVerified && <CheckCircle2 className="w-2.5 h-2.5" />}
                           {norm.replace('_', ' ')}
                         </span>
+                        {p.refund_status && p.refund_status !== 'NONE' && (
+                          <div className="mt-1">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold border inline-flex items-center gap-1 ${
+                              p.refund_status === 'COMPLETED'
+                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            }`}>
+                              Refund: {p.refund_status}
+                              {p.refund_amount ? ` (₹${Number(p.refund_amount).toFixed(2)})` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {p.email_status && p.email_status !== 'NONE' && (
+                          <div className="mt-1 flex items-center justify-center gap-1">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border inline-flex items-center gap-1 ${
+                              p.email_status === 'SENT'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                            }`} title={p.email_error || (p.email_sent_at ? `Sent at ${p.email_sent_at}` : '')}>
+                              ✉ {p.email_status === 'SENT' ? 'Email Sent' : 'Email Failed'}
+                            </span>
+                            {p.email_status === 'FAILED' && (
+                              <button
+                                onClick={() => handleAction('retry_email', p.id)}
+                                disabled={isActing}
+                                className="text-[9px] font-bold text-sky-400 hover:text-sky-300 underline disabled:opacity-50"
+                                title="Retry sending notification"
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {p.rejection_reason && (
                           <div className="text-[10px] text-rose-400 mt-0.5 max-w-[120px] truncate" title={p.rejection_reason}>
                             {p.rejection_reason}
@@ -534,6 +567,19 @@ export default function AdminPaymentsPage() {
                             >
                               <RotateCcw className="w-3 h-3" />
                               Refund
+                            </button>
+                          )}
+
+                          {/* Retry Email */}
+                          {p.email_status === 'FAILED' && (
+                            <button
+                              onClick={() => handleAction('retry_email', p.id)}
+                              disabled={isActing}
+                              className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-white border border-sky-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
+                              title="Retry Email Notification"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              Email
                             </button>
                           )}
                         </div>

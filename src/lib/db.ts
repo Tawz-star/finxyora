@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import { DIRECT_UPI_CONFIG, buildDynamicUpiUrl, buildQrCodeImageUrl, getPaymentGatewayInfo } from './payment-gateway';
+import { sendRejectionRefundEmail } from './email';
 
 // =============================================================
 // DATABASE ENGINE CONFIGURATION
@@ -176,6 +177,12 @@ export interface EventRegistrationRecord {
   registration_status: 'registered' | 'confirmed' | 'cancelled';
   registration_type: 'REAL' | 'TEST';
   transaction_id?: string;
+  rejection_reason?: string;
+  rejected_at?: string;
+  refund_status?: string;
+  email_status?: string;
+  email_sent_at?: string;
+  email_error?: string;
   created_at: string;
   updated_at: string;
   participants?: ParticipantRecord[];
@@ -219,6 +226,12 @@ export interface StallBookingRecord {
   registration_type: 'REAL' | 'TEST';
   transaction_id?: string;
   admin_notes?: string;
+  rejection_reason?: string;
+  rejected_at?: string;
+  refund_status?: string;
+  email_status?: string;
+  email_sent_at?: string;
+  email_error?: string;
   created_at: string;
   updated_at: string;
   option_name?: string;
@@ -268,8 +281,9 @@ export type PaymentStatus =
   | 'failed'
   | 'refunded';
 
-export function normalizePaymentStatus(status?: string | null): 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED' {
+export function normalizePaymentStatus(status?: string | null): 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED' | 'REFUNDED' {
   const s = String(status || '').toUpperCase();
+  if (s === 'REFUNDED') return 'REFUNDED';
   if (s === 'PAID' || s === 'VERIFIED' || s === 'SUCCESSFUL' || s === 'CONFIRMED' || s === 'APPROVED') return 'PAID';
   if (s === 'REVIEW_REQUIRED' || s === 'SUBMITTED' || s === 'PENDING_REVIEW') return 'REVIEW_REQUIRED';
   if (s === 'VERIFYING') return 'VERIFYING';
@@ -302,6 +316,14 @@ export interface PaymentRecord {
   verified_amount?: number;
   review_notes?: string;
   verification_method?: string;
+  refund_status?: string;
+  refund_amount?: number;
+  refund_ref?: string;
+  refunded_at?: string;
+  rejected_at?: string;
+  email_status?: string;
+  email_sent_at?: string;
+  email_error?: string;
   item_title?: string;
   participant_count?: number;
 }
@@ -513,6 +535,26 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('enquiries', 'email_status', "VARCHAR(50) DEFAULT 'pending'");
     await safeAddPgCol('enquiries', 'email_dispatched', 'INTEGER DEFAULT 0');
     await safeAddPgCol('enquiries', 'email_error', 'TEXT');
+    await safeAddPgCol('payments', 'refund_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('payments', 'refund_amount', 'NUMERIC(10,2) DEFAULT 0');
+    await safeAddPgCol('payments', 'refund_ref', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'refunded_at', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'rejected_at', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'email_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('payments', 'email_sent_at', 'VARCHAR(100)');
+    await safeAddPgCol('payments', 'email_error', 'TEXT');
+    await safeAddPgCol('event_registrations', 'rejection_reason', 'TEXT');
+    await safeAddPgCol('event_registrations', 'rejected_at', 'VARCHAR(100)');
+    await safeAddPgCol('event_registrations', 'refund_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('event_registrations', 'email_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('event_registrations', 'email_sent_at', 'VARCHAR(100)');
+    await safeAddPgCol('event_registrations', 'email_error', 'TEXT');
+    await safeAddPgCol('stall_bookings', 'rejection_reason', 'TEXT');
+    await safeAddPgCol('stall_bookings', 'rejected_at', 'VARCHAR(100)');
+    await safeAddPgCol('stall_bookings', 'refund_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('stall_bookings', 'email_status', "VARCHAR(50) DEFAULT 'NONE'");
+    await safeAddPgCol('stall_bookings', 'email_sent_at', 'VARCHAR(100)');
+    await safeAddPgCol('stall_bookings', 'email_error', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -706,6 +748,26 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('enquiries', 'email_status', "TEXT NOT NULL DEFAULT 'pending'");
     safeAddSqCol('enquiries', 'email_dispatched', 'INTEGER NOT NULL DEFAULT 0');
     safeAddSqCol('enquiries', 'email_error', 'TEXT');
+    safeAddSqCol('payments', 'refund_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('payments', 'refund_amount', 'REAL NOT NULL DEFAULT 0');
+    safeAddSqCol('payments', 'refund_ref', 'TEXT');
+    safeAddSqCol('payments', 'refunded_at', 'TEXT');
+    safeAddSqCol('payments', 'rejected_at', 'TEXT');
+    safeAddSqCol('payments', 'email_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('payments', 'email_sent_at', 'TEXT');
+    safeAddSqCol('payments', 'email_error', 'TEXT');
+    safeAddSqCol('event_registrations', 'rejection_reason', 'TEXT');
+    safeAddSqCol('event_registrations', 'rejected_at', 'TEXT');
+    safeAddSqCol('event_registrations', 'refund_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('event_registrations', 'email_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('event_registrations', 'email_sent_at', 'TEXT');
+    safeAddSqCol('event_registrations', 'email_error', 'TEXT');
+    safeAddSqCol('stall_bookings', 'rejection_reason', 'TEXT');
+    safeAddSqCol('stall_bookings', 'rejected_at', 'TEXT');
+    safeAddSqCol('stall_bookings', 'refund_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('stall_bookings', 'email_status', "TEXT NOT NULL DEFAULT 'NONE'");
+    safeAddSqCol('stall_bookings', 'email_sent_at', 'TEXT');
+    safeAddSqCol('stall_bookings', 'email_error', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -1655,7 +1717,7 @@ export async function submitPaymentUtr(payload: {
 export async function getPaymentStatus(queryId: string): Promise<{
   success: boolean;
   found: boolean;
-  status: 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED';
+  status: 'PENDING' | 'VERIFYING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REVIEW_REQUIRED' | 'REFUNDED';
   rawStatus: string;
   isVerified: boolean;
   registrationId: string;
@@ -2680,76 +2742,480 @@ export async function verifyPayment(paymentId: string, adminUsername: string, no
   return true;
 }
 
-export async function rejectPayment(paymentId: string, adminUsername: string, reason: string): Promise<boolean> {
-  const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
-  if (!pay) throw new Error('Payment not found');
-
-  const now = new Date().toISOString();
-  await execute(`
-    UPDATE payments SET
-      status = 'FAILED', rejection_reason = ?, verified_at = ?, verified_by = ?
-    WHERE id = ?
-  `, [reason, now, adminUsername, paymentId]);
-
-  if (pay.reference_type === 'event') {
-    await execute(`
-      UPDATE event_registrations SET
-        payment_status = 'rejected', registration_status = 'cancelled', updated_at = ?
-      WHERE id = ?
-    `, [now, pay.reference_id]);
-  } else {
-    await execute(`
-      UPDATE stall_bookings SET
-        payment_status = 'rejected', status = 'rejected', updated_at = ?
-      WHERE id = ?
-    `, [now, pay.reference_id]);
-  }
-
-  await logAuditEvent(
-    adminUsername,
-    'PAYMENT_REJECTED',
-    'PAYMENT',
-    paymentId,
-    `Admin rejected payment: ${reason}`
-  );
-
-  return true;
+export interface RejectionRefundResult {
+  success: boolean;
+  message: string;
+  paymentId: string;
+  registrationId: string;
+  refundStatus: string;
+  refundAmount: number;
+  emailSent: boolean;
+  emailStatus: 'SENT' | 'FAILED' | 'SKIPPED';
+  emailRecipient?: string;
+  emailError?: string;
 }
 
-export async function refundPayment(paymentId: string, adminUsername: string, reason: string): Promise<boolean> {
+export async function rejectPayment(
+  paymentId: string,
+  adminUsername: string,
+  reason: string,
+  options?: { skipEmail?: boolean }
+): Promise<RejectionRefundResult> {
   const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
-  if (!pay) throw new Error('Payment not found');
+  if (!pay) throw new Error('Payment record not found');
 
   const now = new Date().toISOString();
+  const wasPaid = normalizePaymentStatus(pay.status) === 'PAID';
+
+  let participantName = 'Participant';
+  let recipientEmail = pay.payer_email || '';
+  let itemTitle = 'Finxyora Competition';
+  let refundStatus = 'Not Applicable (Payment was not captured)';
+  let refundStatusDb = 'NONE';
+  let refundAmount = 0;
+
+  // 1. Retrieve registered participant details directly from SQL DB (trusted source of truth)
+  if (pay.reference_type === 'event') {
+    const reg = await getEventRegistration(pay.reference_id);
+    if (reg) {
+      participantName = (reg.participants && reg.participants[0]?.full_name) || reg.leader_name;
+      recipientEmail = reg.leader_email;
+      itemTitle = reg.event?.title || 'Festival Event';
+    }
+  } else {
+    const stl = await getStallBooking(pay.reference_id);
+    if (stl) {
+      participantName = stl.contact_name;
+      recipientEmail = stl.contact_email;
+      itemTitle = stl.option_name || stl.stall_category;
+    }
+  }
+
+  // 2. Separate registration rejection from refund processing
+  if (wasPaid) {
+    // A paid registration was rejected — initiate/record refund
+    refundStatus = 'Initiated (12–15 hours expected)';
+    refundStatusDb = 'INITIATED';
+    refundAmount = Number(pay.amount || 0);
+
+    // If Razorpay gateway integration is active and has valid payment ID, attempt automated provider refund
+    const gatewayInfo = getPaymentGatewayInfo();
+    let providerRefundRef: string | undefined = undefined;
+    if (gatewayInfo.isConfigured && pay.gateway_payment_id?.startsWith('pay_')) {
+      try {
+        const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+        const res = await fetch(`https://api.razorpay.com/v1/payments/${pay.gateway_payment_id}/refund`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + Buffer.from(`${gatewayInfo.keyId}:${razorpaySecret}`).toString('base64'),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            amount: Math.round(refundAmount * 100),
+            notes: { reason, registrationId: pay.reference_id, rejectedBy: adminUsername }
+          })
+        });
+        const rzpData = await res.json();
+        if (res.ok && rzpData.id) {
+          providerRefundRef = rzpData.id;
+          refundStatus = 'Completed (Gateway Automated Refund)';
+          refundStatusDb = 'COMPLETED';
+        }
+      } catch (gwErr) {
+        console.warn('Gateway refund attempt error, falling back to manual record:', gwErr);
+      }
+    }
+
+    // Update payment record: keep track that money was received, but now refund is in progress/completed
+    await execute(`
+      UPDATE payments SET
+        status = ?,
+        rejection_reason = ?,
+        refund_status = ?,
+        refund_amount = ?,
+        refund_ref = ?,
+        rejected_at = ?,
+        verified_by = ?
+      WHERE id = ?
+    `, [
+      refundStatusDb === 'COMPLETED' ? 'refunded' : 'PAID',
+      reason,
+      refundStatusDb,
+      refundAmount,
+      providerRefundRef || null,
+      now,
+      adminUsername,
+      paymentId
+    ]);
+  } else {
+    // Unpaid / pending payment rejected — no money was received
+    await execute(`
+      UPDATE payments SET
+        status = 'FAILED',
+        rejection_reason = ?,
+        refund_status = 'NONE',
+        refund_amount = 0,
+        rejected_at = ?,
+        verified_by = ?
+      WHERE id = ?
+    `, [reason, now, adminUsername, paymentId]);
+  }
+
+  // 3. Update registration status to cancelled/rejected with audit fields
+  if (pay.reference_type === 'event') {
+    await execute(`
+      UPDATE event_registrations SET
+        registration_status = 'cancelled',
+        payment_status = 'rejected',
+        rejection_reason = ?,
+        rejected_at = ?,
+        refund_status = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [reason, now, refundStatusDb, now, pay.reference_id]);
+  } else {
+    await execute(`
+      UPDATE stall_bookings SET
+        status = 'rejected',
+        payment_status = 'rejected',
+        admin_notes = ?,
+        rejection_reason = ?,
+        rejected_at = ?,
+        refund_status = ?,
+        updated_at = ?
+      WHERE id = ?
+    `, [reason, reason, now, refundStatusDb, now, pay.reference_id]);
+  }
+
+  // 4. Send email notification to registered participant
+  let emailSent = false;
+  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = 'SKIPPED';
+  let emailError: string | undefined = undefined;
+
+  if (!options?.skipEmail && recipientEmail && recipientEmail.includes('@')) {
+    try {
+      const emailRes = await sendRejectionRefundEmail({
+        participantName,
+        recipientEmail,
+        registrationId: pay.reference_id,
+        itemTitle,
+        amount: wasPaid ? refundAmount : Number(pay.amount || 0),
+        refundStatus,
+        rejectionReason: reason
+      });
+
+      if (emailRes.success) {
+        emailSent = true;
+        emailStatus = 'SENT';
+      } else {
+        emailStatus = 'FAILED';
+        emailError = emailRes.error || 'Failed to dispatch via email service';
+      }
+    } catch (e) {
+      emailStatus = 'FAILED';
+      emailError = e instanceof Error ? e.message : 'Unknown email error';
+    }
+
+    // Save notification result in database
+    await execute(`
+      UPDATE payments SET
+        email_status = ?,
+        email_sent_at = ?,
+        email_error = ?
+      WHERE id = ?
+    `, [emailStatus, now, emailError || null, paymentId]);
+
+    if (pay.reference_type === 'event') {
+      await execute(`
+        UPDATE event_registrations SET
+          email_status = ?,
+          email_sent_at = ?,
+          email_error = ?
+        WHERE id = ?
+      `, [emailStatus, now, emailError || null, pay.reference_id]);
+    } else {
+      await execute(`
+        UPDATE stall_bookings SET
+          email_status = ?,
+          email_sent_at = ?,
+          email_error = ?
+        WHERE id = ?
+      `, [emailStatus, now, emailError || null, pay.reference_id]);
+    }
+  }
+
+  // 5. Audit Log
+  await logAuditEvent(
+    adminUsername,
+    'PAYMENT_REGISTRATION_REJECTED',
+    pay.reference_type === 'event' ? 'EVENT_REGISTRATION' : 'STALL_BOOKING',
+    pay.reference_id,
+    `Rejected: "${reason}" | WasPaid=${wasPaid} | RefundStatus=${refundStatusDb} (₹${refundAmount}) | Email=${emailStatus} to ${recipientEmail}${emailError ? ' (Err: ' + emailError + ')' : ''}`
+  );
+
+  return {
+    success: true,
+    message: `Registration ${pay.reference_id} marked as Rejected. Refund status: ${refundStatus}.${emailSent ? ' Notification email successfully sent to ' + recipientEmail + '.' : emailError ? ' Notice: Notification email failed (' + emailError + ').' : ''}`,
+    paymentId,
+    registrationId: pay.reference_id,
+    refundStatus,
+    refundAmount,
+    emailSent,
+    emailStatus,
+    emailRecipient: recipientEmail,
+    emailError
+  };
+}
+
+export async function refundPayment(
+  paymentId: string,
+  adminUsername: string,
+  reason: string,
+  options?: { skipEmail?: boolean }
+): Promise<RejectionRefundResult> {
+  const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!pay) throw new Error('Payment record not found');
+
+  const now = new Date().toISOString();
+  const refundAmount = Number(pay.amount || 0);
+  const refundStatus = 'Completed (Full Refund Issued)';
+  const refundStatusDb = 'COMPLETED';
+
+  let participantName = 'Participant';
+  let recipientEmail = pay.payer_email || '';
+  let itemTitle = 'Finxyora Competition';
+
+  if (pay.reference_type === 'event') {
+    const reg = await getEventRegistration(pay.reference_id);
+    if (reg) {
+      participantName = (reg.participants && reg.participants[0]?.full_name) || reg.leader_name;
+      recipientEmail = reg.leader_email;
+      itemTitle = reg.event?.title || 'Festival Event';
+    }
+  } else {
+    const stl = await getStallBooking(pay.reference_id);
+    if (stl) {
+      participantName = stl.contact_name;
+      recipientEmail = stl.contact_email;
+      itemTitle = stl.option_name || stl.stall_category;
+    }
+  }
+
+  // Attempt gateway refund if Razorpay is configured
+  const gatewayInfo = getPaymentGatewayInfo();
+  let providerRefundRef: string | undefined = undefined;
+  if (gatewayInfo.isConfigured && pay.gateway_payment_id?.startsWith('pay_')) {
+    try {
+      const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+      const res = await fetch(`https://api.razorpay.com/v1/payments/${pay.gateway_payment_id}/refund`, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${gatewayInfo.keyId}:${razorpaySecret}`).toString('base64'),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: Math.round(refundAmount * 100),
+          notes: { reason, registrationId: pay.reference_id, refundedBy: adminUsername }
+        })
+      });
+      const rzpData = await res.json();
+      if (res.ok && rzpData.id) {
+        providerRefundRef = rzpData.id;
+      }
+    } catch (gwErr) {
+      console.warn('Gateway refund error, logging manual refund:', gwErr);
+    }
+  }
+
+  // Update payments record
   await execute(`
     UPDATE payments SET
-      status = 'refunded', rejection_reason = ?, verified_at = ?, verified_by = ?
+      status = 'refunded',
+      refund_status = 'COMPLETED',
+      refund_amount = ?,
+      refund_ref = ?,
+      refunded_at = ?,
+      rejection_reason = ?,
+      verified_by = ?
     WHERE id = ?
-  `, [reason, now, adminUsername, paymentId]);
+  `, [refundAmount, providerRefundRef || null, now, reason, adminUsername, paymentId]);
 
   if (pay.reference_type === 'event') {
     await execute(`
       UPDATE event_registrations SET
-        payment_status = 'refunded', registration_status = 'cancelled', updated_at = ?
+        payment_status = 'refunded',
+        registration_status = 'cancelled',
+        refund_status = 'COMPLETED',
+        rejection_reason = ?,
+        updated_at = ?
       WHERE id = ?
-    `, [now, pay.reference_id]);
+    `, [reason, now, pay.reference_id]);
   } else {
     await execute(`
       UPDATE stall_bookings SET
-        payment_status = 'refunded', status = 'refunded', updated_at = ?
+        payment_status = 'refunded',
+        status = 'refunded',
+        refund_status = 'COMPLETED',
+        admin_notes = ?,
+        rejection_reason = ?,
+        updated_at = ?
       WHERE id = ?
-    `, [now, pay.reference_id]);
+    `, [reason, reason, now, pay.reference_id]);
+  }
+
+  // Send email confirmation
+  let emailSent = false;
+  let emailStatus: 'SENT' | 'FAILED' | 'SKIPPED' = 'SKIPPED';
+  let emailError: string | undefined = undefined;
+
+  if (!options?.skipEmail && recipientEmail && recipientEmail.includes('@')) {
+    try {
+      const emailRes = await sendRejectionRefundEmail({
+        participantName,
+        recipientEmail,
+        registrationId: pay.reference_id,
+        itemTitle,
+        amount: refundAmount,
+        refundStatus: 'Completed (Full Refund Issued)',
+        rejectionReason: reason
+      });
+
+      if (emailRes.success) {
+        emailSent = true;
+        emailStatus = 'SENT';
+      } else {
+        emailStatus = 'FAILED';
+        emailError = emailRes.error || 'Failed to dispatch via email service';
+      }
+    } catch (e) {
+      emailStatus = 'FAILED';
+      emailError = e instanceof Error ? e.message : 'Unknown email error';
+    }
+
+    await execute(`
+      UPDATE payments SET
+        email_status = ?,
+        email_sent_at = ?,
+        email_error = ?
+      WHERE id = ?
+    `, [emailStatus, now, emailError || null, paymentId]);
   }
 
   await logAuditEvent(
     adminUsername,
-    'PAYMENT_REFUNDED',
+    'PAYMENT_REFUND_COMPLETED',
     'PAYMENT',
     paymentId,
-    `Refund logged: ${reason}`
+    `Refund ₹${refundAmount} completed for ${pay.reference_id}: "${reason}" | Email=${emailStatus}`
   );
 
-  return true;
+  return {
+    success: true,
+    message: `Payment ${paymentId} (Ref: ${pay.reference_id}) marked as Refunded. ${emailSent ? 'Confirmation email sent to ' + recipientEmail + '.' : emailError ? 'Notice: Email delivery failed (' + emailError + ').' : ''}`,
+    paymentId,
+    registrationId: pay.reference_id,
+    refundStatus,
+    refundAmount,
+    emailSent,
+    emailStatus,
+    emailRecipient: recipientEmail,
+    emailError
+  };
+}
+
+export async function retryPaymentEmail(
+  paymentId: string,
+  adminUsername: string
+): Promise<RejectionRefundResult> {
+  const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!pay) throw new Error('Payment record not found');
+
+  let participantName = 'Participant';
+  let recipientEmail = pay.payer_email || '';
+  let itemTitle = 'Finxyora Competition';
+
+  if (pay.reference_type === 'event') {
+    const reg = await getEventRegistration(pay.reference_id);
+    if (reg) {
+      participantName = (reg.participants && reg.participants[0]?.full_name) || reg.leader_name;
+      recipientEmail = reg.leader_email;
+      itemTitle = reg.event?.title || 'Festival Event';
+    }
+  } else {
+    const stl = await getStallBooking(pay.reference_id);
+    if (stl) {
+      participantName = stl.contact_name;
+      recipientEmail = stl.contact_email;
+      itemTitle = stl.option_name || stl.stall_category;
+    }
+  }
+
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    throw new Error('No registered email found in database for this record.');
+  }
+
+  const refundStatus = pay.status === 'refunded' || pay.refund_status === 'COMPLETED'
+    ? 'Completed (Full Refund Issued)'
+    : pay.refund_status === 'INITIATED' || pay.refund_status === 'PROCESSING'
+    ? 'Initiated (12–15 hours expected)'
+    : 'Not Applicable (Payment was not captured)';
+
+  const now = new Date().toISOString();
+  let emailSent = false;
+  let emailStatus: 'SENT' | 'FAILED' = 'FAILED';
+  let emailError: string | undefined = undefined;
+
+  try {
+    const emailRes = await sendRejectionRefundEmail({
+      participantName,
+      recipientEmail,
+      registrationId: pay.reference_id,
+      itemTitle,
+      amount: Number(pay.refund_amount || pay.amount || 0),
+      refundStatus,
+      rejectionReason: pay.rejection_reason || 'Administrative review'
+    });
+
+    if (emailRes.success) {
+      emailSent = true;
+      emailStatus = 'SENT';
+    } else {
+      emailError = emailRes.error || 'Email dispatch failed';
+    }
+  } catch (err) {
+    emailError = err instanceof Error ? err.message : 'Unknown error';
+  }
+
+  await execute(`
+    UPDATE payments SET
+      email_status = ?,
+      email_sent_at = ?,
+      email_error = ?
+    WHERE id = ?
+  `, [emailStatus, now, emailError || null, paymentId]);
+
+  await logAuditEvent(
+    adminUsername,
+    'EMAIL_NOTIFICATION_RETRY',
+    'PAYMENT',
+    paymentId,
+    `Email retry to ${recipientEmail}: ${emailStatus}${emailError ? ' (Err: ' + emailError + ')' : ''}`
+  );
+
+  return {
+    success: emailSent,
+    message: emailSent
+      ? `Notification email successfully re-sent to ${recipientEmail}.`
+      : `Email dispatch failed: ${emailError}`,
+    paymentId,
+    registrationId: pay.reference_id,
+    refundStatus,
+    refundAmount: Number(pay.refund_amount || pay.amount || 0),
+    emailSent,
+    emailStatus,
+    emailRecipient: recipientEmail,
+    emailError
+  };
 }
 
 // =============================================================
@@ -2867,6 +3333,9 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
   studentStallBookings: number;
   vendorStallBookings: number;
   verifiedCollections: number;
+  completedRefunds: number;
+  netCollections: number;
+  pendingRefunds: number;
   submittedCollections: number;
   pendingCollections: number;
   refundedCollections: number;
@@ -2875,6 +3344,7 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
   verifiedPayments: number;
   submittedPayments: number;
   failedPayments: number;
+  refundedPayments: number;
   activeFilter: 'REAL' | 'ALL' | 'TEST';
   isCentralizedDatabase: boolean;
   databaseEngine: string;
@@ -2922,7 +3392,7 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
   const totalEventRegs = Number(filteredRegsRow?.count || 0);
 
   const confirmedRegsRow = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM event_registrations WHERE ${regTypeClause} AND payment_status IN ('verified', 'paid', 'submitted')`
+    `SELECT COUNT(*) as count FROM event_registrations WHERE ${regTypeClause} AND LOWER(payment_status) IN ('verified', 'paid') AND LOWER(registration_status) != 'cancelled'`
   );
   const confirmedEventRegs = Number(confirmedRegsRow?.count || 0);
 
@@ -2944,13 +3414,16 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
   const totalStallBookings = Number(stallRows?.count || 0);
 
   const studentStalls = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM stall_bookings WHERE ${stallTypeClause} AND applicant_type = 'student'`
+    `SELECT COUNT(*) as count FROM stall_bookings WHERE ${stallTypeClause} AND LOWER(applicant_type) = 'student'`
   );
   const vendorStalls = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM stall_bookings WHERE ${stallTypeClause} AND applicant_type = 'vendor'`
+    `SELECT COUNT(*) as count FROM stall_bookings WHERE ${stallTypeClause} AND LOWER(applicant_type) IN ('vendor', 'outsider')`
   );
 
-  // 4. Financial breakdown (Test data must NOT distort genuine collections!)
+  // 4. Financial breakdown (Strict verified revenue calculation rules)
+  // Total verified collections: ONLY amounts received from successfully verified payments.
+  // When a verified payment is refunded later, it remains in verified collections as original intake,
+  // and the completed refund is subtracted from net collections to ensure non-negative, accurate reporting.
   const payTypeClause = filterType === 'ALL'
     ? '1=1'
     : filterType === 'TEST'
@@ -2958,35 +3431,55 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
     : "registration_type = 'REAL'";
 
   const verifiedSumRow = await queryOne<{ total: string | number }>(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE ${payTypeClause} AND status IN ('verified', 'successful', 'paid')`
+    `SELECT COALESCE(SUM(amount), 0) as total FROM payments 
+     WHERE ${payTypeClause} AND (LOWER(status) IN ('verified', 'successful', 'paid', 'refunded') OR refund_status = 'COMPLETED')`
   );
-  const submittedSumRow = await queryOne<{ total: string | number }>(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE ${payTypeClause} AND status = 'submitted'`
+
+  // Completed refunds: Subtract only refunds confirmed as successfully completed
+  const completedRefundsRow = await queryOne<{ total: string | number }>(
+    `SELECT COALESCE(SUM(CASE WHEN refund_amount > 0 THEN refund_amount ELSE amount END), 0) as total FROM payments 
+     WHERE ${payTypeClause} AND (LOWER(status) = 'refunded' OR refund_status = 'COMPLETED')`
   );
+
+  // Pending refunds: uncompleted/initiated refunds (do not deduct until confirmed)
+  const pendingRefundsRow = await queryOne<{ total: string | number }>(
+    `SELECT COALESCE(SUM(CASE WHEN refund_amount > 0 THEN refund_amount ELSE amount END), 0) as total FROM payments 
+     WHERE ${payTypeClause} AND refund_status IN ('INITIATED', 'PROCESSING', 'PENDING', 'REFUND_PENDING') AND LOWER(status) != 'refunded'`
+  );
+
+  // Pending payments: strictly pending verification (PENDING, SUBMITTED, REVIEW_REQUIRED, VERIFYING)
   const pendingSumRow = await queryOne<{ total: string | number }>(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE ${payTypeClause} AND status = 'pending'`
+    `SELECT COALESCE(SUM(amount), 0) as total FROM payments 
+     WHERE ${payTypeClause} AND LOWER(status) IN ('pending', 'submitted', 'review_required', 'verifying')`
   );
-  const refundedSumRow = await queryOne<{ total: string | number }>(
-    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE ${payTypeClause} AND status = 'refunded'`
+
+  const submittedSumRow = await queryOne<{ total: string | number }>(
+    `SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE ${payTypeClause} AND LOWER(status) = 'submitted'`
   );
 
   const verifiedCollections = Number(verifiedSumRow?.total || 0);
-  const submittedCollections = Number(submittedSumRow?.total || 0);
+  const completedRefunds = Number(completedRefundsRow?.total || 0);
+  const refundedCollections = completedRefunds; // backwards-compatible alias
+  const netCollections = Math.max(0, verifiedCollections - completedRefunds);
   const pendingCollections = Number(pendingSumRow?.total || 0);
-  const refundedCollections = Number(refundedSumRow?.total || 0);
+  const pendingRefunds = Number(pendingRefundsRow?.total || 0);
+  const submittedCollections = Number(submittedSumRow?.total || 0);
 
   // 5. Payment status tallies
   const pendingPayRow = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND status = 'pending'`
+    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND LOWER(status) IN ('pending', 'submitted', 'review_required', 'verifying')`
   );
   const submittedPayRow = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND status = 'submitted'`
+    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND LOWER(status) = 'submitted'`
   );
   const verifiedPayRow = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND status IN ('verified', 'successful')`
+    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND LOWER(status) IN ('verified', 'successful', 'paid')`
   );
   const rejectedPayRow = await queryOne<{ count: string | number }>(
-    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND status IN ('rejected', 'failed')`
+    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND LOWER(status) IN ('rejected', 'failed', 'expired')`
+  );
+  const refundedPayRow = await queryOne<{ count: string | number }>(
+    `SELECT COUNT(*) as count FROM payments WHERE ${payTypeClause} AND (LOWER(status) = 'refunded' OR refund_status = 'COMPLETED')`
   );
 
   // 6. Events breakdown
@@ -3007,7 +3500,7 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
       [ev.id]
     );
     const paidRow = await queryOne<{ count: string | number }>(
-      "SELECT COUNT(*) as count FROM event_registrations WHERE event_id = ? AND payment_status IN ('verified', 'paid', 'submitted')",
+      "SELECT COUNT(*) as count FROM event_registrations WHERE event_id = ? AND LOWER(payment_status) IN ('verified', 'paid')",
       [ev.id]
     );
     const partRow = await queryOne<{ total: string | number }>(
@@ -3049,6 +3542,9 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
     studentStallBookings: Number(studentStalls?.count || 0),
     vendorStallBookings: Number(vendorStalls?.count || 0),
     verifiedCollections,
+    completedRefunds,
+    netCollections,
+    pendingRefunds,
     submittedCollections,
     pendingCollections,
     refundedCollections,
@@ -3057,6 +3553,7 @@ export async function getDashboardMetrics(filterType: 'REAL' | 'ALL' | 'TEST' = 
     verifiedPayments: Number(verifiedPayRow?.count || 0),
     submittedPayments: Number(submittedPayRow?.count || 0),
     failedPayments: Number(rejectedPayRow?.count || 0),
+    refundedPayments: Number(refundedPayRow?.count || 0),
     activeFilter: filterType,
     isCentralizedDatabase: engineInfo.isCentralized,
     databaseEngine: engineInfo.engine,

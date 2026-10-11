@@ -222,6 +222,12 @@ export async function GET(req: NextRequest) {
           };
         });
 
+        // Enable filters on header row
+        worksheet.autoFilter = {
+          from: { row: 1, column: 1 },
+          to: { row: 1, column: worksheet.columns.length }
+        };
+
         // Query Registrations for this specific event
         const regRecords = await getAllEventRegistrations({ eventId: ev.id, registrationType });
         const enriched = await Promise.all(regRecords.map((r) => getEventRegistration(r.id)));
@@ -285,7 +291,7 @@ export async function GET(req: NextRequest) {
       }
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const filename = `FINXYORA_2K26_Event_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const filename = `Finxyora_Event_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
@@ -296,77 +302,179 @@ export async function GET(req: NextRequest) {
     }
 
     // ==========================================
-    // 2. STALL REGISTRATIONS CSV EXPORT
+    // 2. STALL REGISTRATIONS EXPORT (.XLSX)
     // ==========================================
     if (type === 'stalls') {
       const bookings: StallBookingRecord[] = await getAllStallBookings({ registrationType });
 
-      // Note: College Name is intentionally EXCLUDED from stall CSV export per requirement 5.
-      // Applicant Type is accurately mapped using formatApplicantType ('Student' vs 'Outsider') per requirement 4.
-      // Created At is formatted as 'Sunday, 11 October 2026, 03:30 PM IST' per requirement 6.
-      const headers = [
-        'Booking ID',
-        'Registration Type',
-        'Option ID',
-        'Stall Category',
-        'Applicant Type',
-        'Entity Name',
-        'Department / Class',
-        'Contact Name',
-        'Contact Email',
-        'Contact Phone',
-        'Products / Services',
-        'Stalls Requested',
-        'Duration (Days)',
-        'Selected Day',
-        'Booking Dates',
-        'Electricity Included',
-        'Total Amount (INR)',
-        'Payment Status',
-        'Booking Status',
-        'UTR / Transaction ID',
-        'Admin Notes',
-        'Created At'
+      // Note: College Name is intentionally EXCLUDED from stall report per requirements.
+      // External stall applicants are identified as 'Outsider', not 'Student'.
+      // Created At timestamp formatted with weekday, date, and time in Asia/Kolkata timezone.
+      if (format === 'csv') {
+        const headers = [
+          'Registration ID',
+          'Applicant Name',
+          'Applicant Type',
+          'Contact Email',
+          'Contact Phone',
+          'Stall Category',
+          'Booking Duration',
+          'Selected Day / Dates',
+          'Products / Services',
+          'Stalls Requested',
+          'Electricity Included',
+          'Amount Payable (INR)',
+          'Payment Status',
+          'Refund Status',
+          'Registration Status',
+          'UTR / Transaction Ref',
+          'Registration Type',
+          'Created At'
+        ];
+
+        const rows = bookings.map((b: StallBookingRecord) => {
+          const cleanApplicantType = formatApplicantType(b.applicant_type, b.stall_category);
+          const durationDays = b.duration_days || 1;
+          const selectedDay = b.selected_day || (durationDays === 2 ? 'Both Days' : '1 Day');
+          const dayDates = b.booking_dates ? `${selectedDay} (${b.booking_dates})` : selectedDay;
+
+          return [
+            b.id,
+            escapeCsvCell(b.contact_name),
+            cleanApplicantType,
+            b.contact_email,
+            b.contact_phone,
+            escapeCsvCell(b.stall_category),
+            `${durationDays} Day${durationDays > 1 ? 's' : ''}`,
+            escapeCsvCell(dayDates),
+            escapeCsvCell(b.products_services),
+            String(b.stalls_requested),
+            b.has_electricity ? 'YES' : 'NO',
+            String(b.total_amount),
+            (b.payment_status || 'submitted').toUpperCase(),
+            (b.refund_status || 'NONE').toUpperCase(),
+            (b.status || 'pending').toUpperCase(),
+            escapeCsvCell(b.transaction_id || '—'),
+            b.registration_type,
+            escapeCsvCell(formatCreatedAtIST(b.created_at))
+          ].join(',');
+        });
+
+        const csvContent = [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
+        const filename = `Finxyora_Stall_Registrations_${new Date().toISOString().slice(0, 10)}.csv`;
+
+        return new NextResponse(csvContent, {
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${filename}"`
+          }
+        });
+      }
+
+      // Default & Primary Export: Downloadable genuine Excel (.xlsx) workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'FINXYORA 2K26 Festival Management';
+      workbook.lastModifiedBy = session.username;
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const worksheet = workbook.addWorksheet('Stall Registrations', {
+        properties: { tabColor: { argb: 'FF10B981' } }
+      });
+
+      worksheet.views = [{ state: 'frozen', ySplit: 1, showGridLines: true }];
+
+      // Define columns: College Name is intentionally EXCLUDED
+      worksheet.columns = [
+        { header: 'Registration ID', key: 'id', width: 18 },
+        { header: 'Applicant Name', key: 'contact_name', width: 24 },
+        { header: 'Applicant Type', key: 'applicant_type', width: 16 },
+        { header: 'Contact Email', key: 'contact_email', width: 28 },
+        { header: 'Contact Phone', key: 'contact_phone', width: 16 },
+        { header: 'Stall Category', key: 'stall_category', width: 22 },
+        { header: 'Booking Duration', key: 'duration', width: 16 },
+        { header: 'Selected Day / Dates', key: 'selected_day', width: 26 },
+        { header: 'Stall Entity / Brand', key: 'entity_name', width: 22 },
+        { header: 'Products / Services', key: 'products_services', width: 32 },
+        { header: 'Stalls Requested', key: 'stalls_requested', width: 16 },
+        { header: 'Electricity Needed', key: 'has_electricity', width: 16 },
+        { header: 'Amount Payable (₹)', key: 'total_amount', width: 18 },
+        { header: 'Payment Status', key: 'payment_status', width: 16 },
+        { header: 'Refund Status', key: 'refund_status', width: 18 },
+        { header: 'Registration Status', key: 'status', width: 18 },
+        { header: 'UTR / Transaction Ref', key: 'utr', width: 22 },
+        { header: 'Registration Type', key: 'reg_type', width: 16 },
+        { header: 'Created At', key: 'created_at', width: 36 }
       ];
 
-      const rows = bookings.map((b: StallBookingRecord) => {
+      // Style Header Row
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 26;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10, name: 'Calibri' };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF0F172A' } // Sleek Navy Slate #0F172A
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          bottom: { style: 'medium', color: { argb: 'FF10B981' } } // Emerald
+        };
+      });
+
+      // Enable filters on header row
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: worksheet.columns.length }
+      };
+
+      // Populate Rows
+      bookings.forEach((b: StallBookingRecord) => {
         const cleanApplicantType = formatApplicantType(b.applicant_type, b.stall_category);
         const durationDays = b.duration_days || 1;
         const selectedDay = b.selected_day || (durationDays === 2 ? 'Both Days' : '1 Day');
-        const bookingDates = b.booking_dates || '';
+        const dayDates = b.booking_dates ? `${selectedDay} (${b.booking_dates})` : selectedDay;
 
-        return [
-          b.id,
-          b.registration_type,
-          b.option_id,
-          b.stall_category,
-          cleanApplicantType,
-          escapeCsvCell(b.entity_name),
-          escapeCsvCell(b.department_class || ''),
-          escapeCsvCell(b.contact_name),
-          b.contact_email,
-          b.contact_phone,
-          escapeCsvCell(b.products_services),
-          String(b.stalls_requested),
-          String(durationDays),
-          escapeCsvCell(selectedDay),
-          escapeCsvCell(bookingDates),
-          b.has_electricity ? 'YES' : 'NO',
-          String(b.total_amount),
-          (b.payment_status || 'submitted').toUpperCase(),
-          (b.status || 'pending').toUpperCase(),
-          escapeCsvCell(b.transaction_id || '—'),
-          escapeCsvCell(b.admin_notes || ''),
-          escapeCsvCell(formatCreatedAtIST(b.created_at))
-        ].join(',');
+        worksheet.addRow({
+          id: b.id,
+          contact_name: b.contact_name,
+          applicant_type: cleanApplicantType,
+          contact_email: b.contact_email,
+          contact_phone: b.contact_phone,
+          stall_category: b.stall_category || '—',
+          duration: `${durationDays} Day${durationDays > 1 ? 's' : ''}`,
+          selected_day: dayDates,
+          entity_name: b.entity_name || '—',
+          products_services: b.products_services || '—',
+          stalls_requested: b.stalls_requested || 1,
+          has_electricity: b.has_electricity ? 'Yes' : 'No',
+          total_amount: Number(b.total_amount || 0),
+          payment_status: (b.payment_status || 'submitted').toUpperCase(),
+          refund_status: (b.refund_status || 'NONE').toUpperCase(),
+          status: (b.status || 'pending').toUpperCase(),
+          utr: b.transaction_id || '—',
+          reg_type: b.registration_type || 'REAL',
+          created_at: formatCreatedAtIST(b.created_at)
+        });
       });
 
-      const csvContent = [headers.map(escapeCsvCell).join(','), ...rows].join('\r\n');
-      const filename = `FINXYORA_2K26_Stall_Bookings_${new Date().toISOString().slice(0, 10)}.csv`;
+      // Adjust column widths based on maximum content length
+      worksheet.columns.forEach((col) => {
+        let maxLen = col.header ? String(col.header).length : 12;
+        col.eachCell?.({ includeEmpty: false }, (cell) => {
+          const len = cell.value ? String(cell.value).length : 0;
+          if (len > maxLen) maxLen = len;
+        });
+        col.width = Math.min(Math.max(maxLen + 3, 14), 48);
+      });
 
-      return new NextResponse(csvContent, {
+      const buffer = await workbook.xlsx.writeBuffer();
+      const filename = `Finxyora_Stall_Registrations_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      return new NextResponse(new Uint8Array(buffer), {
         headers: {
-          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${filename}"`
         }
       });

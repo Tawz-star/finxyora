@@ -432,3 +432,100 @@ FINXYORA 2026 • Bishop Heber College, Tiruchirappalli
 
   return result;
 }
+
+export interface RejectionRefundEmailPayload {
+  participantName: string;
+  recipientEmail: string;
+  registrationId: string;
+  itemTitle: string;
+  amount: number;
+  refundStatus: string;
+  rejectionReason?: string;
+}
+
+export async function sendRejectionRefundEmail(data: RejectionRefundEmailPayload): Promise<EmailSendResult> {
+  const subject = 'Finxyora Registration Update — Rejected and Refund Information';
+
+  const textBody = `Dear ${data.participantName},
+
+We regret to inform you that your registration for ${data.itemTitle} under Registration ID ${data.registrationId} has not been approved.
+
+Your registration status has been updated to Rejected.
+
+Refund Details
+- Registration ID: ${data.registrationId}
+- Event / Stall: ${data.itemTitle}
+- Amount: ₹${data.amount.toFixed(2)}
+- Refund Status: ${data.refundStatus}
+
+If your refund has been successfully initiated through the supported payment process, the amount is expected to be credited to your original payment account within 12–15 hours, subject to payment provider and banking processing times.
+
+If the refund has not yet been initiated or is awaiting approval, we will update you when its status changes.
+
+Thank you for your understanding.
+
+Regards,
+Finxyora Organizing Team
+FinTech Association
+`;
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 28px; border-radius: 12px; max-width: 600px; line-height: 1.6;">
+      <h2 style="color: #f43f5e; margin-top: 0; font-size: 20px;">Finxyora Registration Update — Rejected</h2>
+      <p style="font-size: 14px; color: #e2e8f0;">Dear <strong>${data.participantName}</strong>,</p>
+      <p style="font-size: 14px; color: #cbd5e1;">
+        We regret to inform you that your registration for <strong style="color: #38bdf8;">${data.itemTitle}</strong> under Registration ID <code>${data.registrationId}</code> has not been approved.
+      </p>
+      <p style="font-size: 14px; color: #cbd5e1;">
+        Your registration status has been updated to <strong style="color: #f43f5e;">Rejected</strong>.
+      </p>
+      ${data.rejectionReason ? `<p style="background: rgba(244, 63, 94, 0.1); border-left: 3px solid #f43f5e; padding: 10px 14px; border-radius: 4px; font-size: 13px; color: #fecdd3;"><strong>Reason:</strong> ${data.rejectionReason}</p>` : ''}
+
+      <div style="background: rgba(255,255,255,0.05); padding: 18px; border-radius: 8px; border: 1px solid #334155; margin: 20px 0;">
+        <h3 style="color: #facc15; margin-top: 0; font-size: 15px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Refund Details</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #f1f5f9;">
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8; width: 140px;"><strong>Registration ID:</strong></td>
+            <td style="padding: 5px 0; font-family: monospace; font-weight: bold;">${data.registrationId}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Event / Stall:</strong></td>
+            <td style="padding: 5px 0;">${data.itemTitle}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Amount:</strong></td>
+            <td style="padding: 5px 0; font-weight: bold; color: #4ade80;">₹${data.amount.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Refund Status:</strong></td>
+            <td style="padding: 5px 0; font-weight: bold; color: #facc15;">${data.refundStatus}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+        If your refund has been successfully initiated through the supported payment process, the amount is expected to be credited to your original payment account within <strong>12–15 hours</strong>, subject to payment provider and banking processing times.
+      </p>
+      <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+        If the refund has not yet been initiated or is awaiting approval, we will update you when its status changes.
+      </p>
+
+      <p style="font-size: 14px; color: #cbd5e1; margin-top: 24px;">
+        Thank you for your understanding.
+      </p>
+
+      <div style="margin-top: 24px; border-top: 1px solid #1e293b; padding-top: 16px; font-size: 13px; color: #94a3b8;">
+        Regards,<br/>
+        <strong style="color: #ffffff;">Finxyora Organizing Team</strong><br/>
+        FinTech Association &bull; Bishop Heber College
+      </div>
+    </div>
+  `;
+
+  return sendEmailNotification(subject, textBody, htmlBody, {
+    to: data.recipientEmail,
+    cc: DESTINATION_EMAIL,
+    replyTo: DESTINATION_EMAIL
+  });
+}
+
