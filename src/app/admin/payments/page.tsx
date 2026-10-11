@@ -58,7 +58,7 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [regTypeFilter, setRegTypeFilter] = useState<RegType>('REAL');
+  const [regTypeFilter, setRegTypeFilter] = useState<RegType>('ALL');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -148,7 +148,7 @@ export default function AdminPaymentsPage() {
             <span>Payment Reconciliation &amp; Ledger</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Authoritatively verify submitted UPI UTRs against bank statements, reject invalid claims, and issue refunds.
+            Authoritatively verify submitted UPI UTRs against bank statements, reject invalid claims, issue refunds, or permanently delete any erroneous payment record to correct festival revenue totals.
           </p>
         </div>
 
@@ -584,22 +584,20 @@ export default function AdminPaymentsPage() {
                             </button>
                           )}
 
-                          {/* Delete Payment Record */}
+                          {/* Delete Payment Record - Available for all payment records */}
                           <button
                             onClick={() => {
-                              const isTestRec = p.registration_type === 'TEST';
-                              const msg = isTestRec
-                                ? `Delete test payment record ${p.id} (₹${Number(p.amount || 0).toFixed(2)})?\n\nThis will permanently remove it from the payment ledger and correct festival revenue totals.`
-                                : `⚠️ Are you sure you want to delete payment record ${p.id} (₹${Number(p.amount || 0).toFixed(2)}) for ${p.reference_id}?\n\nThis will permanently remove it from the payment ledger and adjust revenue calculations.`;
+                              const msg = `⚠️ Permanently delete payment record "${p.id}" (₹${Number(p.amount || 0).toFixed(2)}) for ${p.reference_id}?\n\nThis will remove it from the payment ledger and immediately deduct it from festival revenue calculations.`;
                               if (window.confirm(msg)) {
                                 handleAction('delete', p.id);
                               }
                             }}
                             disabled={isActing}
-                            className="p-1.5 rounded-lg text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 hover:border-rose-500/40 flex items-center justify-center transition-all disabled:opacity-50 group"
-                            title="Permanently delete payment record & adjust revenue"
+                            className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
+                            title="Permanently delete payment and recalculate festival revenue"
                           >
-                            <Trash2 className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                            <Trash2 className="w-3 h-3" />
+                            Delete
                           </button>
                         </div>
                       </td>
