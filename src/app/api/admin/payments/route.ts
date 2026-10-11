@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession } from '@/lib/auth';
-import { getAllPayments, refundPayment, verifyPayment, rejectPayment, retryPaymentEmail } from '@/lib/db';
+import { getAllPayments, refundPayment, verifyPayment, rejectPayment, retryPaymentEmail, deletePayment } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -78,11 +78,49 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === 'delete') {
+      if (!paymentId) {
+        return NextResponse.json({ success: false, error: 'Payment ID is required' }, { status: 400 });
+      }
+      const result = await deletePayment(paymentId, session.username);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        result
+      });
+    }
+
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
   } catch (err: unknown) {
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : 'Operation failed' },
       { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getAdminSession();
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const qId = searchParams.get('id');
+    const bId = (await req.json().catch(() => ({}))).paymentId;
+    const paymentId = qId || bId;
+
+    if (!paymentId) {
+      return NextResponse.json({ success: false, error: 'Payment ID is required' }, { status: 400 });
+    }
+
+    const result = await deletePayment(paymentId, session.username);
+    return NextResponse.json({ success: true, message: result.message, result });
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : 'Delete failed' },
+      { status: 500 }
     );
   }
 }

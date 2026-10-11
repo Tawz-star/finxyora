@@ -18,7 +18,8 @@ import {
   Clock,
   ExternalLink,
   Shield,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 import { PaymentRecord, normalizePaymentStatus } from '@/lib/payment-types';
 
@@ -96,7 +97,7 @@ export default function AdminPaymentsPage() {
     fetchPayments();
   }, [fetchPayments]);
 
-  const handleAction = async (action: 'verify' | 'reject' | 'refund' | 'retry_email', paymentId: string, reasonOrNotes?: string) => {
+  const handleAction = async (action: 'verify' | 'reject' | 'refund' | 'retry_email' | 'delete', paymentId: string, reasonOrNotes?: string) => {
     setActionLoading(paymentId);
     setError(null);
     setSuccessMsg(null);
@@ -582,6 +583,24 @@ export default function AdminPaymentsPage() {
                               Email
                             </button>
                           )}
+
+                          {/* Delete Payment Record */}
+                          <button
+                            onClick={() => {
+                              const isTestRec = p.registration_type === 'TEST';
+                              const msg = isTestRec
+                                ? `Delete test payment record ${p.id} (₹${Number(p.amount || 0).toFixed(2)})?\n\nThis will permanently remove it from the payment ledger and correct festival revenue totals.`
+                                : `⚠️ Are you sure you want to delete payment record ${p.id} (₹${Number(p.amount || 0).toFixed(2)}) for ${p.reference_id}?\n\nThis will permanently remove it from the payment ledger and adjust revenue calculations.`;
+                              if (window.confirm(msg)) {
+                                handleAction('delete', p.id);
+                              }
+                            }}
+                            disabled={isActing}
+                            className="p-1.5 rounded-lg text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 hover:border-rose-500/40 flex items-center justify-center transition-all disabled:opacity-50 group"
+                            title="Permanently delete payment record & adjust revenue"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                          </button>
                         </div>
                       </td>
                     </tr>

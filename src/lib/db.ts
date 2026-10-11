@@ -2397,6 +2397,49 @@ export async function deleteRegistration(id: string, adminUsername: string, conf
   return true;
 }
 
+export async function deletePayment(
+  paymentId: string,
+  adminUsername: string
+): Promise<{ success: boolean; message: string; deletedId: string; amount: number; referenceId: string }> {
+  await ensureSchema();
+  const pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!pay) {
+    throw new Error(`Payment record "${paymentId}" not found.`);
+  }
+
+  // Delete payment record from central SQL database
+  await execute('DELETE FROM payments WHERE id = ?', [paymentId]);
+
+  // If this payment was tied to an event or stall registration, clean up status if no other payments exist
+  if (pay.reference_type === 'event') {
+    const remaining = await query<PaymentRecord>('SELECT * FROM payments WHERE reference_id = ?', [pay.reference_id]);
+    if (remaining.length === 0) {
+      await execute("UPDATE event_registrations SET transaction_id = NULL, payment_status = 'pending', registration_status = 'pending' WHERE id = ?", [pay.reference_id]);
+    }
+  } else if (pay.reference_type === 'stall') {
+    const remaining = await query<PaymentRecord>('SELECT * FROM payments WHERE reference_id = ?', [pay.reference_id]);
+    if (remaining.length === 0) {
+      await execute("UPDATE stall_bookings SET transaction_id = NULL, payment_status = 'pending', status = 'pending' WHERE id = ?", [pay.reference_id]);
+    }
+  }
+
+  await logAuditEvent(
+    adminUsername,
+    'DELETE_PAYMENT',
+    'PAYMENT',
+    paymentId,
+    `Deleted payment ${paymentId} (₹${pay.amount}, Type: ${pay.registration_type}, Status: ${pay.status}, Ref: ${pay.reference_id})`
+  );
+
+  return {
+    success: true,
+    message: `Payment ${paymentId} (₹${pay.amount}) was deleted successfully and removed from revenue calculations.`,
+    deletedId: paymentId,
+    amount: Number(pay.amount || 0),
+    referenceId: pay.reference_id
+  };
+}
+
 // =============================================================
 // STALLS API
 // =============================================================
