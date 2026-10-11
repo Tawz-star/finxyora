@@ -503,6 +503,20 @@ async function initAllSchemas(): Promise<void> {
         status VARCHAR(50) NOT NULL DEFAULT 'new',
         created_at VARCHAR(100) NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS incoming_bank_credits (
+        id VARCHAR(100) PRIMARY KEY,
+        amount NUMERIC(10,2) NOT NULL,
+        sender_phone VARCHAR(50),
+        sender_vpa VARCHAR(150),
+        bank_ref VARCHAR(100),
+        payer_name VARCHAR(150),
+        raw_message TEXT,
+        matched_payment_id VARCHAR(100),
+        matched_registration_id VARCHAR(100),
+        created_at VARCHAR(100) NOT NULL,
+        matched_at VARCHAR(100)
+      );
     `);
 
     // Non-destructive Column Migrations (PostgreSQL)
@@ -715,6 +729,20 @@ async function initAllSchemas(): Promise<void> {
         message TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'new',
         created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS incoming_bank_credits (
+        id TEXT PRIMARY KEY,
+        amount REAL NOT NULL,
+        sender_phone TEXT,
+        sender_vpa TEXT,
+        bank_ref TEXT,
+        payer_name TEXT,
+        raw_message TEXT,
+        matched_payment_id TEXT,
+        matched_registration_id TEXT,
+        created_at TEXT NOT NULL,
+        matched_at TEXT
       );
     `);
 

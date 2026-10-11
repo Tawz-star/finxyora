@@ -82,7 +82,7 @@ function buildQrImageUrl(upiUrl: string, size = 280): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=M&margin=10&data=${encodeURIComponent(upiUrl)}`;
 }
 
-type PaymentStep = 'loading_order' | 'scan' | 'enter_utr' | 'submitting' | 'review_required' | 'verified_success';
+type PaymentStep = 'loading_order' | 'scan' | 'processing_payment' | 'enter_utr' | 'submitting' | 'review_required' | 'verified_success';
 
 export default function PaymentModal({
   isOpen,
@@ -104,6 +104,7 @@ export default function PaymentModal({
   const [qrImageUrl, setQrImageUrl] = useState<string>('');
   const [utrNumber, setUtrNumber] = useState<string>('');
   const [step, setStep] = useState<PaymentStep>('loading_order');
+  const [processingElapsed, setProcessingElapsed] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusCheckMessage, setStatusCheckMessage] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -112,6 +113,8 @@ export default function PaymentModal({
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
   const utrInputRef = useRef<HTMLInputElement>(null);
+
+  const registeredPhone = payerPhone || eventData?.leaderPhone || stallData?.contactPhone || '';
 
   // Initialize server-side payment order on open
   useEffect(() => {
@@ -278,6 +281,57 @@ export default function PaymentModal({
     }
   }, [paymentIntentId, registrationId, onPaymentSuccess]);
 
+  // Automated backend verification polling while in 'processing_payment'
+  useEffect(() => {
+    if (step !== 'processing_payment') {
+      setProcessingElapsed(0);
+      return;
+    }
+
+    let isMounted = true;
+    let timer: NodeJS.Timeout | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    timer = setInterval(() => {
+      setProcessingElapsed((prev) => prev + 1);
+    }, 1000);
+
+    const checkAutoVerification = async () => {
+      try {
+        const idToQuery = paymentIntentId || registrationId;
+        const res = await fetch(
+          `/api/payments/auto-verify?paymentId=${encodeURIComponent(idToQuery)}&phone=${encodeURIComponent(registeredPhone)}&amount=${serverAmount}`
+        );
+        const data = await res.json();
+
+        if (!isMounted) return;
+
+        if (data.isVerified || data.status === 'PAID') {
+          if (pollInterval) clearInterval(pollInterval);
+          if (timer) clearInterval(timer);
+          setStep('verified_success');
+          setTimeout(() => {
+            if (isMounted) {
+              onPaymentSuccess(data.redirectUrl || `/confirmation/${registrationId}`);
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        console.warn('Auto-verification check error:', err);
+      }
+    };
+
+    // First check immediately
+    checkAutoVerification();
+    pollInterval = setInterval(checkAutoVerification, 2500);
+
+    return () => {
+      isMounted = false;
+      if (timer) clearInterval(timer);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [step, paymentIntentId, registrationId, registeredPhone, serverAmount, onPaymentSuccess]);
+
   if (!isOpen) return null;
 
   return (
@@ -436,7 +490,7 @@ export default function PaymentModal({
                   'Scan QR with GPay, PhonePe, Paytm or BHIM',
                   `Pay exactly ₹${serverAmount.toFixed(2)} — amount is pre-filled`,
                   'Complete the payment in your UPI app',
-                  'Return here and enter the 12-digit UPI Transaction ID (UTR)'
+                  'Click below to automatically verify your payment & receive your pass'
                 ].map((s, i) => (
                   <div key={i} className="flex items-start gap-2.5 text-[11px] text-slate-400">
                     <span className="w-4 h-4 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
@@ -448,16 +502,92 @@ export default function PaymentModal({
               </div>
 
               <button
-                onClick={() => setStep('enter_utr')}
+                onClick={() => setStep('processing_payment')}
                 className="w-full py-4 rounded-2xl text-sm font-black bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 <CheckCircle2 className="w-5 h-5" />
-                I Have Paid — Enter Transaction ID
+                I Have Paid — Verify Payment
               </button>
 
               <p className="text-[10px] text-slate-500 text-center font-mono">
                 Order Ref: {paymentIntentId || registrationId}
               </p>
+            </div>
+          )}
+
+          {/* ─── STEP: PROCESSING PAYMENT (AUTO-VERIFICATION) ─── */}
+          {step === 'processing_payment' && (
+            <div className="py-8 flex flex-col items-center justify-center gap-5 text-center animate-fadeIn">
+              <div className="relative w-20 h-20 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-3xl bg-sky-500/20 animate-ping opacity-60" />
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 border border-sky-400/50 flex items-center justify-center shadow-xl shadow-sky-500/30">
+                  <RefreshCw className="w-8 h-8 text-white animate-spin" />
+                </div>
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-bold mb-2">
+                  <Zap className="w-3 h-3 text-sky-400" />
+                  Auto-Verifying Bank Receipt
+                </div>
+                <h3 className="text-xl font-black text-white">Processing Payment...</h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto leading-relaxed">
+                  Checking receiver bank account for incoming credit matching your registered phone and exact amount.
+                </p>
+              </div>
+
+              {/* Transaction details card */}
+              <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Order Reference</span>
+                  <span className="text-sky-300 font-mono font-bold">{registrationId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Expected Amount</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
+                </div>
+                {registeredPhone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Registered Mobile</span>
+                    <span className="text-slate-200 font-mono">{registeredPhone}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Elapsed</span>
+                  <span className="text-slate-400 font-mono">{processingElapsed}s</span>
+                </div>
+              </div>
+
+              {/* Real-time status badge */}
+              <div className="w-full p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>Listening for live Axis Bank / UPI credit settlement...</span>
+              </div>
+
+              {/* Graceful fallback if bank SMS / network takes longer than 30s */}
+              {processingElapsed > 30 && (
+                <div className="w-full space-y-2 pt-2 animate-fadeIn">
+                  <p className="text-[11px] text-slate-400">
+                    Bank network taking a moment? You can keep waiting or provide your UTR reference as a backup:
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep('enter_utr')}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                    >
+                      Enter UTR as Backup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProcessingElapsed(0)}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition-colors"
+                    >
+                      Keep Checking
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
