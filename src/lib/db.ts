@@ -210,6 +210,8 @@ export interface StallBookingRecord {
   products_services: string;
   stalls_requested: number;
   duration_days: number;
+  selected_day?: string;
+  booking_dates?: string;
   has_electricity: number;
   total_amount: number;
   payment_status: 'pending' | 'submitted' | 'verified' | 'rejected' | 'paid';
@@ -220,6 +222,35 @@ export interface StallBookingRecord {
   created_at: string;
   updated_at: string;
   option_name?: string;
+}
+
+export function formatApplicantType(type?: string | null, category?: string | null): 'Student' | 'Outsider' {
+  const norm = String(type || '').trim().toLowerCase();
+  const catNorm = String(category || '').trim().toUpperCase();
+  if (norm === 'outsider' || norm === 'vendor' || catNorm === 'OUTSIDE_VENDOR') {
+    return 'Outsider';
+  }
+  return 'Student';
+}
+
+export function formatCreatedAtIST(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).formatToParts(d);
+  const p: Record<string, string> = {};
+  for (const part of parts) p[part.type] = part.value;
+  const period = (p.dayPeriod || '').toUpperCase();
+  return `${p.weekday}, ${p.day} ${p.month} ${p.year}, ${p.hour}:${p.minute} ${period} IST`;
 }
 
 export type PaymentStatus =
@@ -381,6 +412,8 @@ async function initAllSchemas(): Promise<void> {
         products_services TEXT NOT NULL,
         stalls_requested INTEGER NOT NULL DEFAULT 1,
         duration_days INTEGER NOT NULL DEFAULT 1,
+        selected_day VARCHAR(50),
+        booking_dates TEXT,
         has_electricity INTEGER NOT NULL DEFAULT 0,
         total_amount NUMERIC(10,2) NOT NULL,
         payment_status VARCHAR(50) NOT NULL DEFAULT 'submitted',
@@ -465,6 +498,8 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('stall_bookings', 'transaction_id', 'VARCHAR(100)');
     await safeAddPgCol('stall_bookings', 'payment_status', 'VARCHAR(50) DEFAULT \'submitted\'');
     await safeAddPgCol('stall_bookings', 'duration_days', 'INTEGER DEFAULT 1');
+    await safeAddPgCol('stall_bookings', 'selected_day', 'VARCHAR(50)');
+    await safeAddPgCol('stall_bookings', 'booking_dates', 'TEXT');
     await safeAddPgCol('payments', 'registration_type', 'VARCHAR(20) DEFAULT \'REAL\'');
     await safeAddPgCol('payments', 'verified_by', 'VARCHAR(100)');
     await safeAddPgCol('payments', 'verified_at', 'VARCHAR(100)');
@@ -570,6 +605,8 @@ async function initAllSchemas(): Promise<void> {
         products_services TEXT NOT NULL,
         stalls_requested INTEGER NOT NULL DEFAULT 1,
         duration_days INTEGER NOT NULL DEFAULT 1,
+        selected_day TEXT,
+        booking_dates TEXT,
         has_electricity INTEGER NOT NULL DEFAULT 0,
         total_amount REAL NOT NULL,
         payment_status TEXT NOT NULL DEFAULT 'submitted',
@@ -654,6 +691,8 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('stall_bookings', 'transaction_id', 'TEXT');
     safeAddSqCol('stall_bookings', 'payment_status', "TEXT NOT NULL DEFAULT 'submitted'");
     safeAddSqCol('stall_bookings', 'duration_days', 'INTEGER NOT NULL DEFAULT 1');
+    safeAddSqCol('stall_bookings', 'selected_day', 'TEXT');
+    safeAddSqCol('stall_bookings', 'booking_dates', 'TEXT');
     safeAddSqCol('payments', 'registration_type', "TEXT NOT NULL DEFAULT 'REAL'");
     safeAddSqCol('payments', 'verified_by', 'TEXT');
     safeAddSqCol('payments', 'verified_at', 'TEXT');
@@ -678,6 +717,16 @@ async function initAllSchemas(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_sq_pay_utr ON payments(gateway_payment_id);
         CREATE INDEX IF NOT EXISTS idx_sq_pay_usr_ref ON payments(user_reference);
       `);
+    } catch {
+      // Ignored
+    }
+
+    // Synchronize default event dates & normalize applicant types
+    try {
+      db.prepare("INSERT OR IGNORE INTO site_settings (key, value) VALUES ('event_day1_date', 'November 12, 2026')").run();
+      db.prepare("INSERT OR IGNORE INTO site_settings (key, value) VALUES ('event_day2_date', 'November 13, 2026')").run();
+      db.exec("UPDATE stall_bookings SET applicant_type = 'outsider' WHERE applicant_type IN ('vendor', 'OUTSIDE_VENDOR', 'outsider') OR stall_category = 'OUTSIDE_VENDOR';");
+      db.exec("UPDATE events SET min_participants = 1, max_participants = 1 WHERE id = 'best-cfo';");
     } catch {
       // Ignored
     }
@@ -758,15 +807,15 @@ const INITIAL_EVENTS = [
     category: 'Chief Financial Officer Strategy, Corporate Finance & Treasury',
     description: 'The ultimate corporate treasury and financial leadership trial. Step into the shoes of a Chief Financial Officer allocating capital, mitigating systemic risks, modeling liquidity, and presenting strategic valuations to the board.',
     rules: JSON.stringify([
-      'Teams must consist of exactly 2 participants.',
+      'Individual candidate competition for aspiring financial officers.',
       'Round 1: Financial Statement Forensics & Liquidity Crisis Simulation.',
       'Round 2: Capital Budgeting & M&A Valuation Defense.',
       'Round 3: Press Conference & Hostile Takeover Crisis Management.',
       'Calculators and standard financial modeling spreadsheets provided.',
       'Evaluations will heavily weigh strategic rationale, capital efficiency, and presentation poise.'
     ]),
-    min: 2,
-    max: 2,
+    min: 1,
+    max: 1,
     fee: 50
   },
   {
@@ -873,6 +922,8 @@ async function seedInitialDataPostgres(pool: pg.Pool) {
   const defaultSettings: Record<string, string> = {
     college_name: 'Bishop Heber College',
     event_dates: 'November 12 & 13, 2026',
+    event_day1_date: 'November 12, 2026',
+    event_day2_date: 'November 13, 2026',
     event_venue: 'Golden Jubilee Building',
     default_event_fee: '50',
     default_fee_rule: 'per_participant',
@@ -927,6 +978,8 @@ function seedInitialDataSqlite(db: DatabaseSync) {
   const defaultSettings: Record<string, string> = {
     college_name: 'Bishop Heber College',
     event_dates: 'November 12 & 13, 2026',
+    event_day1_date: 'November 12, 2026',
+    event_day2_date: 'November 13, 2026',
     event_venue: 'Golden Jubilee Building',
     default_event_fee: '50',
     default_fee_rule: 'per_participant',
@@ -1095,7 +1148,7 @@ export interface ClientRegistrationPayload {
   };
   stallData?: {
     optionId: string;
-    applicantType: 'student' | 'vendor';
+    applicantType: 'student' | 'vendor' | 'outsider';
     entityName: string;
     collegeName?: string;
     departmentClass?: string;
@@ -1106,6 +1159,8 @@ export interface ClientRegistrationPayload {
     productsServices: string;
     stallsRequested: number;
     durationDays: number;
+    selectedDay?: string;
+    bookingDates?: string;
   };
 }
 
@@ -1131,7 +1186,7 @@ export interface CreatePaymentOrderParams {
   };
   stallData?: {
     optionId: string;
-    applicantType: 'student' | 'vendor';
+    applicantType: 'student' | 'vendor' | 'outsider';
     entityName: string;
     collegeName?: string;
     departmentClass?: string;
@@ -1142,6 +1197,8 @@ export interface CreatePaymentOrderParams {
     productsServices: string;
     stallsRequested: number;
     durationDays: number;
+    selectedDay?: string;
+    bookingDates?: string;
   };
 }
 
@@ -1299,14 +1356,49 @@ export async function createPaymentOrder(params: CreatePaymentOrderParams): Prom
   } else {
     // STALL ORDER CREATION
     if (!params.stallData) throw new Error('Missing stall booking data');
-    const { optionId, applicantType, entityName, collegeName, departmentClass, contactName, contactEmail, contactPhone, businessDetails, productsServices, stallsRequested, durationDays } = params.stallData;
+    const {
+      optionId,
+      applicantType,
+      entityName,
+      collegeName,
+      departmentClass,
+      contactName,
+      contactEmail,
+      contactPhone,
+      businessDetails,
+      productsServices,
+      stallsRequested,
+      durationDays,
+      selectedDay,
+      bookingDates
+    } = params.stallData;
 
     const opt = await queryOne<StallOptionRecord>('SELECT * FROM stall_options WHERE id = ?', [optionId]);
     if (!opt) throw new Error('Stall option not found');
 
+    const settings = await getSiteSettings();
+    const day1Date = settings.event_day1_date || 'November 12, 2026';
+    const day2Date = settings.event_day2_date || 'November 13, 2026';
+
     const validDays = (durationDays === 2) ? 2 : 1;
     const validStalls = Math.max(1, Math.min(10, Number(stallsRequested) || 1));
     const totalAmount = opt.price * validStalls * validDays;
+    const cleanApplicantType = (opt.category === 'OUTSIDE_VENDOR' || applicantType === 'outsider' || applicantType === 'vendor') ? 'outsider' : 'student';
+
+    let cleanSelectedDay = selectedDay;
+    let cleanBookingDates = bookingDates;
+    if (validDays === 2) {
+      cleanSelectedDay = 'Both Days (Day 1 & Day 2)';
+      cleanBookingDates = `${day1Date} & ${day2Date}`;
+    } else {
+      if (cleanSelectedDay === 'Day 2' || cleanSelectedDay?.includes('Day 2')) {
+        cleanSelectedDay = 'Day 2';
+        cleanBookingDates = day2Date;
+      } else {
+        cleanSelectedDay = 'Day 1';
+        cleanBookingDates = day1Date;
+      }
+    }
 
     const bookingId = params.registrationId && params.registrationId.startsWith('FIN-')
       ? params.registrationId
@@ -1325,14 +1417,15 @@ export async function createPaymentOrder(params: CreatePaymentOrderParams): Prom
         INSERT INTO stall_bookings (
           id, option_id, stall_category, applicant_type, entity_name, college_name,
           department_class, contact_name, contact_email, contact_phone, business_details,
-          products_services, stalls_requested, duration_days, has_electricity, total_amount, payment_status,
+          products_services, stalls_requested, duration_days, selected_day, booking_dates,
+          has_electricity, total_amount, payment_status,
           status, registration_type, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?)
       `, [
         bookingId,
         opt.id,
         opt.category,
-        applicantType,
+        cleanApplicantType,
         entityName.trim(),
         collegeName?.trim() || null,
         departmentClass?.trim() || null,
@@ -1343,6 +1436,8 @@ export async function createPaymentOrder(params: CreatePaymentOrderParams): Prom
         productsServices.trim(),
         validStalls,
         validDays,
+        cleanSelectedDay,
+        cleanBookingDates,
         opt.has_electricity,
         totalAmount,
         regType,
@@ -1861,7 +1956,22 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
   } else {
     // STALL REGISTRATION
     if (!payload.stallData) throw new Error('Missing stall booking details');
-    const { optionId, applicantType, entityName, collegeName, departmentClass, contactName, contactEmail, contactPhone, businessDetails, productsServices, stallsRequested, durationDays } = payload.stallData;
+    const {
+      optionId,
+      applicantType,
+      entityName,
+      collegeName,
+      departmentClass,
+      contactName,
+      contactEmail,
+      contactPhone,
+      businessDetails,
+      productsServices,
+      stallsRequested,
+      durationDays,
+      selectedDay,
+      bookingDates
+    } = payload.stallData;
     const validDays = (durationDays === 2) ? 2 : 1;
 
     const opt = await queryOne<StallOptionRecord>('SELECT * FROM stall_options WHERE id = ?', [optionId]);
@@ -1871,6 +1981,10 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
     if (Math.abs(totalAmount - payload.expectedAmount) > 0.01) {
       throw new Error(`Fee calculation mismatch: expected ₹${totalAmount} (₹${opt.price} × ${stallsRequested} stall(s) × ${validDays} day(s)), received ₹${payload.expectedAmount}.`);
     }
+
+    const cleanApplicantType = (opt.category === 'OUTSIDE_VENDOR' || applicantType === 'outsider' || applicantType === 'vendor') ? 'outsider' : 'student';
+    const cleanSelectedDay = validDays === 2 ? 'Both Days (Day 1 & Day 2)' : (selectedDay || 'Day 1');
+    const cleanBookingDates = bookingDates || (validDays === 2 ? 'November 12 & 13, 2026' : 'November 12, 2026');
 
     const bookingId = payload.registrationId && payload.registrationId.startsWith('FIN-')
       ? payload.registrationId
@@ -1884,22 +1998,27 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         UPDATE stall_bookings SET
           payment_status = 'REVIEW_REQUIRED',
           transaction_id = ?,
+          applicant_type = ?,
+          duration_days = ?,
+          selected_day = ?,
+          booking_dates = ?,
           updated_at = ?
         WHERE id = ?
-      `, [cleanUtr, now, bookingId]);
+      `, [cleanUtr, cleanApplicantType, validDays, cleanSelectedDay, cleanBookingDates, now, bookingId]);
     } else {
       await execute(`
         INSERT INTO stall_bookings (
           id, option_id, stall_category, applicant_type, entity_name, college_name,
           department_class, contact_name, contact_email, contact_phone, business_details,
-          products_services, stalls_requested, duration_days, has_electricity, total_amount, payment_status,
+          products_services, stalls_requested, duration_days, selected_day, booking_dates,
+          has_electricity, total_amount, payment_status,
           status, registration_type, transaction_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', 'pending', ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', 'pending', ?, ?, ?, ?)
       `, [
         bookingId,
         opt.id,
         opt.category,
-        applicantType,
+        cleanApplicantType,
         entityName.trim(),
         collegeName?.trim() || null,
         departmentClass?.trim() || null,
@@ -1910,6 +2029,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         productsServices.trim(),
         stallsRequested,
         validDays,
+        cleanSelectedDay,
+        cleanBookingDates,
         opt.has_electricity,
         totalAmount,
         regType,
@@ -1982,6 +2103,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         contactPhone,
         stallsRequested,
         durationDays: validDays,
+        selectedDay: cleanSelectedDay,
+        bookingDates: cleanBookingDates,
         pricePerDay: opt.price,
         totalAmount,
         transactionId: cleanUtr
@@ -2258,12 +2381,35 @@ export async function createStallBooking(data: {
   productsServices: string;
   stallsRequested: number;
   durationDays?: number;
+  selectedDay?: string;
+  bookingDates?: string;
   isTest?: boolean;
 }): Promise<{ bookingId: string; totalAmount: number; stallOption: StallOptionRecord }> {
   const opt = await queryOne<StallOptionRecord>('SELECT * FROM stall_options WHERE id = ?', [data.optionId]);
   if (!opt) throw new Error('Stall option not found');
 
+  const settings = await getSiteSettings();
+  const day1Date = settings.event_day1_date || 'November 12, 2026';
+  const day2Date = settings.event_day2_date || 'November 13, 2026';
+
   const durationDays = (data.durationDays === 2) ? 2 : 1;
+  const cleanApplicantType = (opt.category === 'OUTSIDE_VENDOR' || data.applicantType === 'outsider' || data.applicantType === 'vendor') ? 'outsider' : 'student';
+
+  let cleanSelectedDay = data.selectedDay;
+  let cleanBookingDates = data.bookingDates;
+
+  if (durationDays === 2) {
+    cleanSelectedDay = 'Both Days (Day 1 & Day 2)';
+    cleanBookingDates = `${day1Date} & ${day2Date}`;
+  } else {
+    if (cleanSelectedDay === 'Day 2' || cleanSelectedDay?.includes('Day 2')) {
+      cleanSelectedDay = 'Day 2';
+      cleanBookingDates = day2Date;
+    } else {
+      cleanSelectedDay = 'Day 1';
+      cleanBookingDates = day1Date;
+    }
+  }
   const totalAmount = opt.price * data.stallsRequested * durationDays;
   const isTest = Boolean(data.isTest);
   const bookingId = await generateStallBookingId(isTest);
@@ -2273,14 +2419,14 @@ export async function createStallBooking(data: {
     INSERT INTO stall_bookings (
       id, option_id, stall_category, applicant_type, entity_name, college_name,
       department_class, contact_name, contact_email, contact_phone, business_details,
-      products_services, stalls_requested, duration_days, has_electricity, total_amount, status,
+      products_services, stalls_requested, duration_days, selected_day, booking_dates, has_electricity, total_amount, status,
       payment_status, registration_type, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?)
   `, [
     bookingId,
     opt.id,
     opt.category,
-    data.applicantType,
+    cleanApplicantType,
     data.entityName.trim(),
     data.collegeName?.trim() || null,
     data.departmentClass?.trim() || null,
@@ -2291,6 +2437,8 @@ export async function createStallBooking(data: {
     data.productsServices.trim(),
     data.stallsRequested,
     durationDays,
+    cleanSelectedDay,
+    cleanBookingDates,
     opt.has_electricity,
     totalAmount,
     isTest ? 'TEST' : 'REAL',
@@ -2316,6 +2464,9 @@ export async function getStallBooking(id: string): Promise<StallBookingRecord | 
     ...booking,
     total_amount: Number(booking.total_amount || 0),
     stalls_requested: Number(booking.stalls_requested || 1),
+    duration_days: Number(booking.duration_days || 1),
+    selected_day: booking.selected_day || ((Number(booking.duration_days || 1) === 2) ? 'Both Days (Day 1 & Day 2)' : 'Day 1'),
+    booking_dates: booking.booking_dates,
     has_electricity: booking.has_electricity ?? opt?.has_electricity ?? 0,
     option_name: opt?.name
   };
@@ -2353,6 +2504,8 @@ export async function getAllStallBookings(filter?: {
 
   return rows.map(r => ({
     ...r,
+    duration_days: Number(r.duration_days || 1),
+    selected_day: r.selected_day || ((Number(r.duration_days || 1) === 2) ? 'Both Days (Day 1 & Day 2)' : 'Day 1'),
     option_name: optMap.get(r.option_id)
   }));
 }

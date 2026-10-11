@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
       contactPhone,
       businessDetails,
       productsServices,
-      stallsRequested
+      stallsRequested,
+      durationDays,
+      selectedDay,
+      bookingDates
     } = body;
 
     if (!optionId || !applicantType || !entityName || !contactName || !contactEmail || !contactPhone || !productsServices) {
@@ -39,6 +42,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'You must request at least 1 stall.' }, { status: 400 });
     }
 
+    const duration = Number(durationDays) === 2 ? 2 : 1;
+    if (duration === 1 && !selectedDay) {
+      return NextResponse.json({ success: false, error: 'Please select Day 1 or Day 2 for your 1-day stall booking.' }, { status: 400 });
+    }
+
     if (applicantType === 'student' && (!collegeName || !departmentClass)) {
       return NextResponse.json(
         { success: false, error: 'College Name and Department/Class are mandatory for student stall applicants.' },
@@ -46,18 +54,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanApplicant = applicantType === 'student' ? 'student' : 'outsider';
+
     const result = await createStallBooking({
       optionId,
-      applicantType: applicantType === 'student' ? 'student' : 'vendor',
+      applicantType: cleanApplicant,
       entityName,
-      collegeName,
-      departmentClass,
+      collegeName: cleanApplicant === 'student' ? collegeName : undefined,
+      departmentClass: cleanApplicant === 'student' ? departmentClass : undefined,
       contactName,
       contactEmail,
       contactPhone,
       businessDetails,
       productsServices,
-      stallsRequested: requested
+      stallsRequested: requested,
+      durationDays: duration,
+      selectedDay,
+      bookingDates
     });
 
     return NextResponse.json({

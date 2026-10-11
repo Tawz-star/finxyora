@@ -196,13 +196,25 @@ export default function AdminRegistrationsPage() {
               <span>Clear All Test Data</span>
             </button>
           )}
+          {eventFilter && (
+            <a
+              href={`/api/admin/export?type=events&eventId=${eventFilter}&format=csv&registrationType=${regTypeFilter}`}
+              download
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+              title="Export filtered competition registrations as dedicated CSV"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export {eventFilter.replace('-', ' ').toUpperCase()} CSV</span>
+            </a>
+          )}
           <a
-            href="/api/admin/export?type=events"
+            href={`/api/admin/export?type=events&registrationType=${regTypeFilter}`}
             download
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white flex items-center gap-1.5 shadow-md shadow-sky-500/20"
+            title="Download single Excel workbook (.xlsx) containing separate sheets for each event"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Export CSV</span>
+            <span>Export All Events (.xlsx)</span>
           </a>
         </div>
       </div>

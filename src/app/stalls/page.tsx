@@ -43,9 +43,12 @@ function StallRegistrationContent() {
 
   const [selectedOptionId, setSelectedOptionId] = useState<string>(preselectedOption);
   const [durationDays, setDurationDays] = useState<1 | 2>(1);
+  const [day1Date, setDay1Date] = useState<string>('November 12, 2026');
+  const [day2Date, setDay2Date] = useState<string>('November 13, 2026');
+  const [selectedDay, setSelectedDay] = useState<'day1' | 'day2' | null>(null);
 
   // Form Fields
-  const [applicantType, setApplicantType] = useState<'student' | 'vendor'>('student');
+  const [applicantType, setApplicantType] = useState<'student' | 'outsider'>('student');
   const [entityName, setEntityName] = useState('');
   const [collegeName, setCollegeName] = useState('');
   const [departmentClass, setDepartmentClass] = useState('');
@@ -63,7 +66,7 @@ function StallRegistrationContent() {
 
   const [stallPayload, setStallPayload] = useState<{
     optionId: string;
-    applicantType: 'student' | 'vendor';
+    applicantType: 'student' | 'outsider';
     entityName: string;
     collegeName?: string;
     departmentClass?: string;
@@ -74,6 +77,8 @@ function StallRegistrationContent() {
     productsServices: string;
     stallsRequested: number;
     durationDays: number;
+    selectedDay?: string;
+    bookingDates?: string;
   } | null>(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -84,6 +89,8 @@ function StallRegistrationContent() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load stalls');
         setOptions(data.stalls);
+        if (data.day1Date) setDay1Date(data.day1Date);
+        if (data.day2Date) setDay2Date(data.day2Date);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -97,7 +104,7 @@ function StallRegistrationContent() {
     setSelectedOptionId(optId);
     const chosen = options.find((o) => o.id === optId);
     if (chosen) {
-      setApplicantType(chosen.category === 'STUDENT' ? 'student' : 'vendor');
+      setApplicantType(chosen.category === 'STUDENT' ? 'student' : 'outsider');
     }
   };
 
@@ -107,6 +114,11 @@ function StallRegistrationContent() {
   const handleProceedToReview = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    if (durationDays === 1 && !selectedDay) {
+      setFormError(`Please select Day 1 (${day1Date}) or Day 2 (${day2Date}) for your one-day stall booking.`);
+      return;
+    }
 
     if (!entityName.trim() || !contactName.trim() || !contactEmail.trim() || !contactPhone.trim() || !productsServices.trim()) {
       setFormError('Please fill in all mandatory fields.');
@@ -132,19 +144,29 @@ function StallRegistrationContent() {
     if (!selectedOption) return;
     setFormError(null);
 
+    const effectiveSelectedDay = durationDays === 1
+      ? (selectedDay === 'day1' ? 'Day 1' : 'Day 2')
+      : 'Both Days (Day 1 & Day 2)';
+
+    const effectiveBookingDates = durationDays === 1
+      ? (selectedDay === 'day1' ? day1Date : day2Date)
+      : `${day1Date} & ${day2Date}`;
+
     const payload = {
       optionId: selectedOption.id,
-      applicantType,
+      applicantType: selectedOption.category === 'STUDENT' ? ('student' as const) : ('outsider' as const),
       entityName,
-      collegeName: applicantType === 'student' ? collegeName : undefined,
-      departmentClass: applicantType === 'student' ? departmentClass : undefined,
+      collegeName: selectedOption.category === 'STUDENT' ? collegeName : undefined,
+      departmentClass: selectedOption.category === 'STUDENT' ? departmentClass : undefined,
       contactName,
       contactEmail,
       contactPhone,
-      businessDetails: applicantType === 'vendor' ? `${businessCategory} — ${businessDetails}` : undefined,
+      businessDetails: selectedOption.category === 'OUTSIDE_VENDOR' ? `${businessCategory} — ${businessDetails}` : undefined,
       productsServices,
       stallsRequested,
-      durationDays
+      durationDays,
+      selectedDay: effectiveSelectedDay,
+      bookingDates: effectiveBookingDates
     };
 
     setStallPayload(payload);
@@ -354,6 +376,88 @@ function StallRegistrationContent() {
               </div>
             </div>
 
+            {/* Event Day Selection */}
+            {durationDays === 1 ? (
+              <div className="space-y-3 p-5 rounded-2xl bg-gradient-to-br from-sky-950/40 via-slate-900 to-indigo-950/40 border border-sky-400/40 shadow-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800 pb-2">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-sky-400" />
+                    <span>Select Event Day <span className="text-rose-400">*</span></span>
+                  </h4>
+                  <span className="text-[11px] text-amber-300 font-semibold flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Required: Choose Day 1 or Day 2
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Please select whether your single-day stall will operate on Day 1 or Day 2:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedDay('day1'); setFormError(null); }}
+                    className={`rounded-2xl p-4 border text-left transition-all ${
+                      selectedDay === 'day1'
+                        ? 'border-sky-400 bg-sky-500/15 ring-2 ring-sky-400/80 shadow-xl shadow-sky-500/20'
+                        : 'border-slate-700 bg-slate-900/60 hover:border-sky-400/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-400 font-mono">Day 1</span>
+                      {selectedDay === 'day1' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
+                    </div>
+                    <div className="text-sm font-bold text-white">
+                      Day 1 — {day1Date}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Festival Opening, Inaugural Address &amp; High-Footfall Pavilion
+                    </div>
+                    <div className="mt-2 text-[10px] text-emerald-300 font-semibold font-mono">
+                      ₹{pricePerDay}/stall &bull; Valid on {day1Date}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedDay('day2'); setFormError(null); }}
+                    className={`rounded-2xl p-4 border text-left transition-all ${
+                      selectedDay === 'day2'
+                        ? 'border-sky-400 bg-sky-500/15 ring-2 ring-sky-400/80 shadow-xl shadow-sky-500/20'
+                        : 'border-slate-700 bg-slate-900/60 hover:border-sky-400/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-400 font-mono">Day 2</span>
+                      {selectedDay === 'day2' && <CheckCircle2 className="w-4 h-4 text-sky-400" />}
+                    </div>
+                    <div className="text-sm font-bold text-white">
+                      Day 2 — {day2Date}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Grand Stage Events, Exhibition Finals &amp; Valedictory
+                    </div>
+                    <div className="mt-2 text-[10px] text-emerald-300 font-semibold font-mono">
+                      ₹{pricePerDay}/stall &bull; Valid on {day2Date}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/40 shadow-lg">
+                <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Full Event Coverage (Both Days Automatically Included)</span>
+                </div>
+                <p className="text-xs text-slate-200">
+                  Your 2-day booking automatically provides continuous reservation across both official festival dates: <strong className="text-white">Day 1 ({day1Date})</strong> and <strong className="text-white">Day 2 ({day2Date})</strong>.
+                </p>
+                <div className="text-[11px] text-emerald-300 font-mono font-semibold pt-1">
+                  Total Dates Reserved: {day1Date} &amp; {day2Date} (2 Full Days)
+                </div>
+              </div>
+            )}
+
             {/* Applicant Details */}
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-2">
@@ -420,7 +524,7 @@ function StallRegistrationContent() {
                 </div>
               )}
 
-              {applicantType === 'vendor' && (
+              {applicantType === 'outsider' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     GST / Business Registration / Website (Optional)
@@ -580,6 +684,20 @@ function StallRegistrationContent() {
                   <span className="text-slate-400 block">Entity Name:</span>
                   <span className="text-white font-semibold">{entityName}</span>
                 </div>
+                <div>
+                  <span className="text-slate-400 block">Duration &amp; Assigned Date(s):</span>
+                  <span className="text-sky-300 font-bold">
+                    {durationDays === 1
+                      ? (selectedDay === 'day1' ? `Day 1 — ${day1Date}` : `Day 2 — ${day2Date}`)
+                      : `Both Days (Day 1 & Day 2) — ${day1Date} & ${day2Date}`}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block">Applicant Classification:</span>
+                  <span className="text-emerald-400 font-semibold">
+                    {selectedOption?.category === 'STUDENT' ? 'Student' : 'Outsider'}
+                  </span>
+                </div>
                 {applicantType === 'student' ? (
                   <div>
                     <span className="text-slate-400 block">Institution:</span>
@@ -615,9 +733,11 @@ function StallRegistrationContent() {
                   <span className="text-white font-bold text-[11px] leading-tight">{selectedOption?.name}</span>
                 </div>
                 <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
-                  <span className="text-slate-400 block mb-0.5">Duration</span>
-                  <span className="text-white font-bold">
-                    {durationDays === 1 ? '1 Day' : '2 Days (Full Event)'}
+                  <span className="text-slate-400 block mb-0.5">Assigned Date(s)</span>
+                  <span className="text-white font-bold text-[11px] leading-tight">
+                    {durationDays === 1
+                      ? (selectedDay === 'day1' ? `Day 1 (${day1Date})` : `Day 2 (${day2Date})`)
+                      : `Both Days (${day1Date} & ${day2Date})`}
                   </span>
                 </div>
                 <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
@@ -673,7 +793,7 @@ function StallRegistrationContent() {
           onClose={() => setIsPaymentModalOpen(false)}
           referenceType="stall"
           amount={calculateTotal()}
-          itemTitle={`${selectedOption.name} — ${durationDays} Day${durationDays > 1 ? 's' : ''} (${stallsRequested} Stall${stallsRequested > 1 ? 's' : ''})`}
+          itemTitle={`${selectedOption.name} — ${stallPayload.selectedDay || (durationDays === 1 ? '1 Day' : '2 Days')} (${stallPayload.bookingDates || ''})`}
           payerEmail={contactEmail}
           payerPhone={contactPhone}
           stallData={stallPayload}

@@ -68,6 +68,9 @@ interface StallBookingView {
   products_services: string;
   business_details?: string;
   stalls_requested: number | string;
+  duration_days?: number | string;
+  selected_day?: string;
+  booking_dates?: string;
   has_electricity: number;
   total_amount: number | string;
   payment_status?: string;
@@ -532,7 +535,16 @@ export default function RegistrationDetailsView({
                   <div>
                     <span className="text-slate-400 block font-medium">Exhibitor Classification</span>
                     <span className="text-sm font-semibold text-white">
-                      {stallBooking?.applicant_type === 'student' ? `Student: ${stallBooking?.college_name}` : 'Commercial Outside Brand'}
+                      {stallBooking?.applicant_type === 'student'
+                        ? `Student${stallBooking?.college_name ? ` (${stallBooking.college_name})` : ''}`
+                        : 'Outsider (Commercial Brand)'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-medium">Duration &amp; Assigned Date(s)</span>
+                    <span className="text-sm font-semibold text-sky-300">
+                      {stallBooking?.selected_day || (Number(stallBooking?.duration_days || 1) === 2 ? 'Both Days (Day 1 & Day 2)' : '1 Day')}
+                      {stallBooking?.booking_dates ? ` — ${stallBooking.booking_dates}` : ''}
                     </span>
                   </div>
                   <div>

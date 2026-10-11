@@ -157,13 +157,39 @@ export default function AdminSettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-300 mb-1">
-                Display Event Dates
+                Display Event Dates (Overview)
               </label>
               <input
                 type="text"
                 value={settings.event_dates || ''}
                 onChange={(e) => handleChange('event_dates', e.target.value)}
                 placeholder="November 12 & 13, 2026"
+                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">
+                Day 1 Actual Date (Stall Booking)
+              </label>
+              <input
+                type="text"
+                value={settings.event_day1_date || ''}
+                onChange={(e) => handleChange('event_day1_date', e.target.value)}
+                placeholder="November 12, 2026"
+                className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-300 mb-1">
+                Day 2 Actual Date (Stall Booking)
+              </label>
+              <input
+                type="text"
+                value={settings.event_day2_date || ''}
+                onChange={(e) => handleChange('event_day2_date', e.target.value)}
+                placeholder="November 13, 2026"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>
@@ -181,7 +207,7 @@ export default function AdminSettingsPage() {
               />
             </div>
 
-            <div>
+            <div className="sm:col-span-2">
               <label className="block font-semibold text-slate-300 mb-1">
                 Campus Venue
               </label>

@@ -276,20 +276,30 @@ export default function AdminStallsPage() {
                   </td>
                   <td className="py-3">
                     <span className="text-white font-medium block">{b.option_name || b.stall_category}</span>
-                    <span className="text-[10px] text-slate-400 block">{b.stalls_requested} Stall(s) &bull; {b.applicant_type}</span>
+                    <span className="text-[10px] text-slate-400 block">
+                      {b.stalls_requested} Stall(s) &bull;{' '}
+                      <span className={b.applicant_type === 'outsider' ? 'text-amber-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                        {b.applicant_type === 'outsider' ? 'Outsider' : 'Student'}
+                      </span>
+                    </span>
                   </td>
                   <td className="py-3">
                     <span className="text-white block font-medium">{b.contact_name}</span>
                     <span className="text-[10px] text-slate-400 block">{b.contact_phone}</span>
                   </td>
                   <td className="py-3 text-center">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border inline-block ${
                       (b.duration_days || 1) === 2
                         ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                        : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
                     }`}>
-                      {(b.duration_days || 1) === 2 ? '2 Days' : '1 Day'}
+                      {b.selected_day || ((b.duration_days || 1) === 2 ? 'Both Days' : '1 Day')}
                     </span>
+                    {b.booking_dates && (
+                      <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                        {b.booking_dates}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 text-center">
                     <span className="font-mono font-bold text-sky-300 block">₹{b.total_amount}</span>

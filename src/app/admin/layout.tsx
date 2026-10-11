@@ -73,10 +73,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href="/api/admin/export?type=events"
                   download
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-sky-300 border border-slate-700 hover:border-sky-500/30 flex items-center gap-1.5 transition-colors"
-                  title="Export all event registrations as CSV"
+                  title="Export all event registrations as a multi-sheet Excel workbook (.xlsx)"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Export Events CSV</span>
+                  <span className="hidden sm:inline">Export Events (.xlsx)</span>
                 </a>
 
                 <a

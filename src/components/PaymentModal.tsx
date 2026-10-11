@@ -37,7 +37,7 @@ export interface EventRegistrationPayload {
 
 export interface StallBookingPayload {
   optionId: string;
-  applicantType: 'student' | 'vendor';
+  applicantType: 'student' | 'vendor' | 'outsider';
   entityName: string;
   collegeName?: string;
   departmentClass?: string;
@@ -48,6 +48,8 @@ export interface StallBookingPayload {
   productsServices: string;
   stallsRequested: number;
   durationDays: number;
+  selectedDay?: string;
+  bookingDates?: string;
 }
 
 interface PaymentModalProps {
