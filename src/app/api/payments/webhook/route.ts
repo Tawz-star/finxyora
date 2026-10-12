@@ -118,32 +118,6 @@ export async function POST(req: NextRequest) {
       `Authoritatively verified via gateway webhook (${event}): Payment ID ${paymentId}, Amount ₹${payment.amount}`
     );
 
-    // Asynchronously dispatch confirmation notification email
-    if (payment.payer_email) {
-      const emailRecipient = payment.payer_email;
-      const refId = payment.reference_id;
-      import('@/lib/email').then(({ sendEmailNotification }) => {
-        sendEmailNotification(
-          `Finxyora 2026 Confirmation - Payment ID ${paymentId}`,
-          `Your payment of ₹${payment.amount} for reference ${refId} has been confirmed via gateway webhook! Payment ID: ${paymentId}`,
-          `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
-            <h2 style="color: #0284c7; margin-top: 0;">Payment Confirmed via Razorpay Gateway</h2>
-            <p>Your payment for <strong>FINXYORA 2026</strong> has been received and automatically confirmed via server webhook.</p>
-            <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 4px 0;"><strong>Reference ID:</strong> ${refId}</p>
-              <p style="margin: 4px 0;"><strong>Razorpay Payment ID:</strong> ${paymentId}</p>
-              <p style="margin: 4px 0;"><strong>Amount Paid:</strong> ₹${payment.amount}</p>
-              <p style="margin: 4px 0;"><strong>Status:</strong> Confirmed & Verified</p>
-            </div>
-            <p>Access your registration details at: <a href="https://finxyora.com/lookup/${encodeURIComponent(refId)}">finxyora.com/lookup/${refId}</a></p>
-          </div>
-          `,
-          { to: emailRecipient }
-        ).catch((e) => console.error('Webhook confirmation email error:', e));
-      });
-    }
-
     return NextResponse.json({ success: true, message: 'Payment successfully verified via webhook.' });
   } catch (err: unknown) {
     return NextResponse.json(

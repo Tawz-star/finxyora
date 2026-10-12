@@ -6,18 +6,17 @@ import {
   AlertCircle,
   Copy,
   Check,
+  QrCode,
   RefreshCw,
   X,
+  ExternalLink,
   Smartphone,
   CheckCircle2,
   IndianRupee,
   Zap,
-  ArrowRight,
-  CreditCard,
-  Lock,
-  Sparkles
+  Clock,
+  ArrowRight
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 export interface EventRegistrationPayload {
   eventId: string;
@@ -67,18 +66,23 @@ interface PaymentModalProps {
   onPaymentSuccess: (receiptUrl: string) => void;
 }
 
-interface RazorpayCheckoutResponse {
-  razorpay_payment_id: string;
-  razorpay_order_id: string;
-  razorpay_signature: string;
+const MERCHANT_VPA = 's.venkatesanraja@okaxis';
+const MERCHANT_NAME = 'S.venkatesan';
+
+// Dynamic fallback builder if server pre-creation is offline
+function buildUpiUrl(amount: number, refId: string): string {
+  const note = encodeURIComponent(`FINXYORA 2026 - ${refId}`);
+  const vpa = encodeURIComponent(MERCHANT_VPA);
+  const name = encodeURIComponent(MERCHANT_NAME);
+  const ref = encodeURIComponent(refId);
+  return `upi://pay?pa=${vpa}&pn=${name}&am=${amount.toFixed(2)}&cu=INR&tn=${note}&tr=${ref}`;
 }
 
-type PaymentStep =
-  | 'loading_order'
-  | 'ready_to_pay'
-  | 'verifying_signature'
-  | 'verified_success'
-  | 'payment_failed';
+function buildQrImageUrl(upiUrl: string, size = 280): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&ecc=M&margin=10&data=${encodeURIComponent(upiUrl)}`;
+}
+
+type PaymentStep = 'loading_order' | 'scan' | 'processing_payment' | 'enter_utr' | 'submitting' | 'review_required' | 'verified_success';
 
 export default function PaymentModal({
   isOpen,
@@ -93,58 +97,40 @@ export default function PaymentModal({
   initialReferenceId,
   onPaymentSuccess
 }: PaymentModalProps) {
-  const [step, setStep] = useState<PaymentStep>('loading_order');
-  const [razorpayOrderId, setRazorpayOrderId] = useState<string>('');
-  const [razorpayKeyId, setRazorpayKeyId] = useState<string>('');
-  const [registrationId, setRegistrationId] = useState<string>(initialReferenceId || '');
-  const [verifiedPaymentId, setVerifiedPaymentId] = useState<string>('');
+  const [paymentIntentId, setPaymentIntentId] = useState<string>('');
+  const [registrationId, setRegistrationId] = useState<string>('');
   const [serverAmount, setServerAmount] = useState<number>(initialAmount);
-  const [amountInPaise, setAmountInPaise] = useState<number>(initialAmount * 100);
-  const [currency, setCurrency] = useState<string>('INR');
+  const [upiUrl, setUpiUrl] = useState<string>('');
+  const [qrImageUrl, setQrImageUrl] = useState<string>('');
+  const [utrNumber, setUtrNumber] = useState<string>('');
+  const [step, setStep] = useState<PaymentStep>('loading_order');
+  const [processingElapsed, setProcessingElapsed] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSdkLoaded, setIsSdkLoaded] = useState<boolean>(false);
-  const [isLaunchingCheckout, setIsLaunchingCheckout] = useState<boolean>(false);
+  const [statusCheckMessage, setStatusCheckMessage] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedAmount, setCopiedAmount] = useState(false);
+  const [qrLoaded, setQrLoaded] = useState(false);
+  const [qrError, setQrError] = useState(false);
+  const utrInputRef = useRef<HTMLInputElement>(null);
 
-  const payerName =
-    eventData?.leaderName ||
-    eventData?.participants?.[0]?.fullName ||
-    stallData?.contactName ||
-    'Participant';
-  const registeredEmail = payerEmail || eventData?.leaderEmail || stallData?.contactEmail || '';
   const registeredPhone = payerPhone || eventData?.leaderPhone || stallData?.contactPhone || '';
 
-  // 1. Dynamically Load Official Razorpay Checkout Script
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const scriptId = 'razorpay-checkout-sdk';
-    if (document.getElementById(scriptId)) {
-      setIsSdkLoaded(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = scriptId;
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => setIsSdkLoaded(true);
-    script.onerror = () => {
-      console.warn('Failed to load Razorpay Checkout SDK from CDN.');
-    };
-    document.body.appendChild(script);
-  }, [isOpen]);
-
-  // 2. Initialize Backend Order on Modal Open
+  // Initialize server-side payment order on open
   useEffect(() => {
     if (!isOpen) return;
 
     setStep('loading_order');
     setErrorMessage(null);
-    setVerifiedPaymentId('');
+    setStatusCheckMessage(null);
+    setUtrNumber('');
+    setQrLoaded(false);
+    setQrError(false);
 
     let isMounted = true;
 
-    fetch('/api/payments/create-order', {
+    // Contact backend to validate and create order
+    fetch('/api/payments/create-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -156,26 +142,40 @@ export default function PaymentModal({
     })
       .then(async (res) => {
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to create payment order on server.');
-        }
+        if (!res.ok) throw new Error(data.error || 'Failed to initialize payment order on server.');
         return data;
       })
       .then((order) => {
         if (!isMounted) return;
-        setRazorpayOrderId(order.order_id || order.orderId);
-        setRazorpayKeyId(order.keyId || '');
         setRegistrationId(order.registrationId);
-        setServerAmount(Number(order.amountInInr || initialAmount));
-        setAmountInPaise(Number(order.amount || initialAmount * 100));
-        setCurrency(order.currency || 'INR');
-        setStep('ready_to_pay');
+        setPaymentIntentId(order.paymentId);
+        setServerAmount(Number(order.amount || initialAmount));
+        setUpiUrl(order.upiUrl);
+        setQrImageUrl(order.qrImageUrl);
+
+        if (order.status === 'PAID') {
+          setStep('verified_success');
+        } else if (order.status === 'REVIEW_REQUIRED') {
+          setStep('review_required');
+        } else {
+          setStep('scan');
+        }
       })
       .catch((err) => {
         if (!isMounted) return;
-        console.error('Order creation error:', err);
-        setErrorMessage(err instanceof Error ? err.message : 'Unable to initialize order.');
-        setStep('payment_failed');
+        console.warn('Server order pre-creation failed, using direct client parameters:', err);
+        // Resilient fallback
+        const now = Date.now();
+        const fallbackReg = initialReferenceId || (referenceType === 'event' ? `FIN-EVT-${now}` : `FIN-STL-${now}`);
+        const fallbackPay = `PAY-${fallbackReg}-${now.toString().slice(-6)}`;
+        setRegistrationId(fallbackReg);
+        setPaymentIntentId(fallbackPay);
+        setServerAmount(initialAmount);
+
+        const upi = buildUpiUrl(initialAmount, fallbackPay);
+        setUpiUrl(upi);
+        setQrImageUrl(buildQrImageUrl(upi));
+        setStep('scan');
       });
 
     return () => {
@@ -183,350 +183,632 @@ export default function PaymentModal({
     };
   }, [isOpen, referenceType, eventData, stallData, initialReferenceId, initialAmount]);
 
-  // 3. Complete and Verify Payment using Backend Signature Endpoint
-  const handleVerifyTokens = useCallback(
-    async (tokens: RazorpayCheckoutResponse) => {
-      setStep('verifying_signature');
-      setErrorMessage(null);
+  // Focus UTR input when step changes to enter_utr
+  useEffect(() => {
+    if (step === 'enter_utr') {
+      setTimeout(() => utrInputRef.current?.focus(), 100);
+    }
+  }, [step]);
 
-      try {
-        const verifyRes = await fetch('/api/payments/verify-signature', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpay_order_id: tokens.razorpay_order_id,
-            razorpay_payment_id: tokens.razorpay_payment_id,
-            razorpay_signature: tokens.razorpay_signature,
-            registrationId,
-            referenceType
-          })
-        });
+  const copyToClipboard = (text: string, type: 'upi' | 'amount') => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    if (type === 'upi') {
+      setCopiedUpi(true);
+      setTimeout(() => setCopiedUpi(false), 2000);
+    } else {
+      setCopiedAmount(true);
+      setTimeout(() => setCopiedAmount(false), 2000);
+    }
+  };
 
-        const verifyData = await verifyRes.json();
-        if (!verifyRes.ok || !verifyData.success) {
-          throw new Error(verifyData.error || 'Payment signature verification failed.');
-        }
+  // Submit 12-digit UTR reference
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
 
-        setVerifiedPaymentId(tokens.razorpay_payment_id);
-        setStep('verified_success');
-
-        // Trigger celebratory confetti
-        try {
-          confetti({
-            particleCount: 80,
-            spread: 70,
-            origin: { y: 0.6 }
-          });
-        } catch {
-          // Ignore confetti errors if canvas unavailable
-        }
-
-        // Auto-redirect after 2.5s
-        setTimeout(() => {
-          onPaymentSuccess(verifyData.redirectUrl || `/confirmation/${registrationId}`);
-        }, 2500);
-      } catch (err) {
-        console.error('Verification error:', err);
-        setErrorMessage(
-          err instanceof Error ? err.message : 'Cryptographic signature verification failed.'
-        );
-        setStep('payment_failed');
-      }
-    },
-    [registrationId, referenceType, onPaymentSuccess]
-  );
-
-  // 4. Launch Razorpay Checkout Popup
-  const handleOpenRazorpayCheckout = () => {
-    if (!razorpayOrderId) {
-      setErrorMessage('Order is not initialized yet. Please wait.');
+    const cleanUtr = utrNumber.trim().replace(/\s/g, '');
+    if (!cleanUtr) {
+      setErrorMessage('Please enter the UPI Transaction ID / UTR number from your payment receipt.');
+      return;
+    }
+    if (cleanUtr.length < 6) {
+      setErrorMessage('UTR must be at least 6 characters (typically a 12-digit bank reference number).');
       return;
     }
 
-    setIsLaunchingCheckout(true);
-    setErrorMessage(null);
+    setStep('submitting');
 
-    // If real Razorpay key is configured and SDK is loaded
-    if (typeof window !== 'undefined' && (window as any).Razorpay && razorpayKeyId && razorpayKeyId !== 'rzp_test_placeholder') {
-      const options = {
-        key: razorpayKeyId,
-        amount: amountInPaise,
-        currency: currency,
-        name: 'FINXYORA 2026',
-        description: itemTitle,
-        order_id: razorpayOrderId,
-        prefill: {
-          name: payerName,
-          email: registeredEmail,
-          contact: registeredPhone
-        },
-        theme: {
-          color: '#0284c7'
-        },
-        handler: function (response: RazorpayCheckoutResponse) {
-          setIsLaunchingCheckout(false);
-          handleVerifyTokens(response);
-        },
-        modal: {
-          ondismiss: function () {
-            setIsLaunchingCheckout(false);
-          }
-        }
-      };
-
-      try {
-        const rzp = new (window as any).Razorpay(options);
-        rzp.on('payment.failed', function (resp: any) {
-          setIsLaunchingCheckout(false);
-          setErrorMessage(resp.error?.description || 'Payment was declined by bank or user.');
-        });
-        rzp.open();
-      } catch (err) {
-        setIsLaunchingCheckout(false);
-        setErrorMessage('Failed to open Razorpay modal: ' + (err instanceof Error ? err.message : 'Unknown error'));
-      }
-    } else {
-      // Sandbox / Mock Mode when Razorpay Key is not set or in test mode
-      console.warn('Sandbox / Simulated checkout triggered.');
-      setIsLaunchingCheckout(false);
-      // Simulate authentic token generation for sandbox test
-      const testPaymentId = `pay_test_${Date.now().toString(36)}`;
-      const testSignature = `test_${Date.now()}`;
-      handleVerifyTokens({
-        razorpay_order_id: razorpayOrderId,
-        razorpay_payment_id: testPaymentId,
-        razorpay_signature: testSignature
+    try {
+      const res = await fetch('/api/payments/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          referenceType,
+          paymentId: paymentIntentId,
+          registrationId,
+          expectedAmount: serverAmount,
+          utrNumber: cleanUtr,
+          timestamp: Date.now(),
+          eventData,
+          stallData
+        })
       });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Payment confirmation failed');
+
+      // Authentic verification rule:
+      // Direct UPI is recorded as REVIEW_REQUIRED, not fabricated auto-success!
+      if (data.status === 'PAID') {
+        setStep('verified_success');
+        setTimeout(() => {
+          onPaymentSuccess(data.redirectUrl || `/confirmation/${registrationId}`);
+        }, 2000);
+      } else {
+        setStep('review_required');
+      }
+    } catch (err: unknown) {
+      setStep('enter_utr');
+      setErrorMessage(err instanceof Error ? err.message : 'Confirmation error. Please try again.');
     }
   };
+
+  // Manual status check query
+  const handleCheckStatus = useCallback(async () => {
+    if (!paymentIntentId && !registrationId) return;
+    setCheckingStatus(true);
+    setStatusCheckMessage(null);
+
+    try {
+      const idToQuery = paymentIntentId || registrationId;
+      const res = await fetch(`/api/payments/verify?paymentId=${encodeURIComponent(idToQuery)}`);
+      const data = await res.json();
+
+      if (data.isVerified || data.status === 'PAID') {
+        setStep('verified_success');
+        setTimeout(() => {
+          onPaymentSuccess(`/confirmation/${registrationId}`);
+        }, 1500);
+      } else if (data.status === 'REVIEW_REQUIRED') {
+        setStatusCheckMessage('Your UTR is currently queued for manual reconciliation against bank statements. Spot confirmed upon verification.');
+      } else {
+        setStatusCheckMessage(data.message || 'Payment status: ' + data.status);
+      }
+    } catch {
+      setStatusCheckMessage('Unable to connect to status endpoint right now. Please try again.');
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, [paymentIntentId, registrationId, onPaymentSuccess]);
+
+  // Automated backend verification polling while in 'processing_payment'
+  useEffect(() => {
+    if (step !== 'processing_payment') {
+      setProcessingElapsed(0);
+      return;
+    }
+
+    let isMounted = true;
+    let timer: NodeJS.Timeout | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    timer = setInterval(() => {
+      setProcessingElapsed((prev) => prev + 1);
+    }, 1000);
+
+    const checkAutoVerification = async () => {
+      try {
+        const idToQuery = paymentIntentId || registrationId;
+        const res = await fetch(
+          `/api/payments/auto-verify?paymentId=${encodeURIComponent(idToQuery)}&phone=${encodeURIComponent(registeredPhone)}&amount=${serverAmount}`
+        );
+        const data = await res.json();
+
+        if (!isMounted) return;
+
+        if (data.isVerified || data.status === 'PAID') {
+          if (pollInterval) clearInterval(pollInterval);
+          if (timer) clearInterval(timer);
+          setStep('verified_success');
+          setTimeout(() => {
+            if (isMounted) {
+              onPaymentSuccess(data.redirectUrl || `/confirmation/${registrationId}`);
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        console.warn('Auto-verification check error:', err);
+      }
+    };
+
+    // First check immediately
+    checkAutoVerification();
+    pollInterval = setInterval(checkAutoVerification, 2500);
+
+    return () => {
+      isMounted = false;
+      if (timer) clearInterval(timer);
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [step, paymentIntentId, registrationId, registeredPhone, serverAmount, onPaymentSuccess]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
-      <div className="relative w-full max-w-lg bg-slate-900/95 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden text-white">
-        {/* Glow ambient background effect */}
-        <div className="absolute -top-24 -left-24 w-60 h-60 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="relative w-full max-w-md rounded-3xl glass-panel border border-sky-500/30 shadow-2xl my-8 overflow-hidden">
 
-        {/* Modal Header */}
-        <div className="relative px-6 py-5 border-b border-slate-800/80 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-sky-400" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                Automated Razorpay Checkout
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Instant Verification
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400">Zero manual transaction ID verification</p>
-            </div>
-          </div>
+        {/* Top gradient bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-400" />
 
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <div className="p-6 sm:p-8">
 
-        {/* Modal Body */}
-        <div className="relative p-6 space-y-6">
+          {/* Close */}
+          {step !== 'submitting' && (
+            <button
+              onClick={onClose}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-slate-800/80 transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
 
           {/* ─── STEP: LOADING ORDER ─── */}
           {step === 'loading_order' && (
             <div className="py-12 flex flex-col items-center justify-center gap-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shadow-lg shadow-sky-500/20">
-                <RefreshCw className="w-6 h-6 text-sky-400 animate-spin" />
+              <div className="w-16 h-16 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Initializing Razorpay Order...</h3>
-                <p className="text-xs text-slate-400 mt-1">Generating unique order tokens with Razorpay API</p>
+                <h3 className="text-lg font-bold text-white">Generating Payment Order...</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Validating fee rules &amp; reserving spot in Central SQL Database
+                </p>
               </div>
             </div>
           )}
 
-          {/* ─── STEP: READY TO PAY ─── */}
-          {step === 'ready_to_pay' && (
+          {/* ─── STEP: SCAN ─── */}
+          {step === 'scan' && (
             <div className="space-y-5">
-              {/* Order summary card */}
-              <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60 space-y-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      Item / Competition
-                    </span>
-                    <h4 className="text-sm font-bold text-white mt-0.5 line-clamp-1">{itemTitle}</h4>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      Amount Due
-                    </span>
-                    <p className="text-xl font-black text-emerald-400">
-                      ₹{serverAmount.toFixed(2)}
-                    </p>
-                  </div>
+              <div className="text-center">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-bold mb-3">
+                  <Zap className="w-3 h-3" />
+                  Direct UPI Payment — Exact Amount Pre-filled
                 </div>
+                <h3 className="text-xl font-black text-white">Scan &amp; Pay</h3>
+                <p className="text-xs text-slate-400 mt-1">Open GPay, PhonePe, Paytm or BHIM and scan below</p>
+              </div>
 
-                <div className="pt-2 border-t border-slate-700/40 flex justify-between text-xs text-slate-300">
-                  <span className="text-slate-400">Registration ID:</span>
-                  <span className="font-mono font-semibold text-sky-300">{registrationId}</span>
+              {/* Amount badge with server-calculated verification */}
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-sky-950/80 to-blue-950/60 border border-sky-500/30">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    {referenceType === 'event' ? 'Event Fee (₹50 / Participant)' : 'Stall Booking Package'}
+                  </span>
+                  <span className="text-xs text-slate-300 line-clamp-1 mt-0.5">{itemTitle}</span>
+                  {registrationId && (
+                    <span className="text-[10px] text-sky-300 font-mono font-bold block mt-1">
+                      ID: {registrationId}
+                    </span>
+                  )}
                 </div>
-                <div className="flex justify-between text-xs text-slate-300">
-                  <span className="text-slate-400">Order Reference:</span>
-                  <span className="font-mono text-slate-400">{razorpayOrderId}</span>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Pay Exactly</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">₹{serverAmount.toFixed(2)}</span>
                 </div>
               </div>
 
-              {/* Supported payment badges */}
-              <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-slate-300">
-                <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex flex-col items-center gap-1">
-                  <Smartphone className="w-4 h-4 text-sky-400" />
-                  <span>UPI / QR / Apps</span>
+              {/* Dynamic QR Code */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative p-3 bg-white rounded-2xl shadow-2xl border-4 border-sky-400/60">
+                  {!qrLoaded && !qrError && (
+                    <div className="w-[240px] h-[240px] flex flex-col items-center justify-center gap-2">
+                      <div className="w-8 h-8 border-4 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] text-slate-500 font-mono">Rendering QR...</span>
+                    </div>
+                  )}
+
+                  {qrError && (
+                    <div className="w-[240px] h-[240px] flex flex-col items-center justify-center gap-3 text-center px-4">
+                      <QrCode className="w-10 h-10 text-slate-400" />
+                      <p className="text-xs text-slate-600">QR unavailable offline.<br />Use UPI ID below to pay manually.</p>
+                      <button
+                        onClick={() => { setQrError(false); setQrLoaded(false); setQrImageUrl(buildQrImageUrl(upiUrl)); }}
+                        className="text-[11px] text-sky-500 underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={qrImageUrl}
+                    alt={`UPI QR Code — Pay ₹${serverAmount} to FINXYORA 2026`}
+                    width={240}
+                    height={240}
+                    className={`rounded-lg object-contain transition-opacity ${qrLoaded ? 'opacity-100' : 'opacity-0 absolute'}`}
+                    onLoad={() => setQrLoaded(true)}
+                    onError={() => setQrError(true)}
+                  />
+
+                  {/* Watermark on QR */}
+                  {qrLoaded && (
+                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] font-black uppercase px-3 py-0.5 rounded-full shadow-lg whitespace-nowrap">
+                      ₹{serverAmount.toFixed(2)} — {MERCHANT_NAME}
+                    </div>
+                  )}
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex flex-col items-center gap-1">
-                  <CreditCard className="w-4 h-4 text-emerald-400" />
-                  <span>Cards & NetBanking</span>
+
+                {/* Merchant Information */}
+                <div className="mt-3 text-center">
+                  <span className="text-xs text-white font-bold">{MERCHANT_NAME}</span>
+                  <span className="text-[11px] text-slate-400 block font-mono">UPI: {MERCHANT_VPA}</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 flex flex-col items-center gap-1">
-                  <Lock className="w-4 h-4 text-blue-400" />
-                  <span>256-Bit Encrypted</span>
+
+                {/* Quick copy row */}
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <button
+                    onClick={() => copyToClipboard(MERCHANT_VPA, 'upi')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                  >
+                    {copiedUpi ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    Copy UPI ID
+                  </button>
+                  <button
+                    onClick={() => copyToClipboard(serverAmount.toFixed(2), 'amount')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                  >
+                    {copiedAmount ? <Check className="w-3 h-3 text-emerald-400" /> : <IndianRupee className="w-3 h-3" />}
+                    Copy Amount
+                  </button>
+                  <a
+                    href={upiUrl}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 transition-all sm:hidden"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Open UPI App
+                  </a>
                 </div>
+
+                {/* Mobile direct tap button */}
+                <a
+                  href={upiUrl}
+                  className="sm:hidden w-full mt-1 py-3 rounded-2xl text-sm font-bold bg-gradient-to-r from-green-600 to-emerald-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  Tap to Pay ₹{serverAmount.toFixed(2)} in UPI App
+                </a>
               </div>
 
-              {errorMessage && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
+              {/* Step instructions */}
+              <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-2">
+                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">How to pay:</p>
+                {[
+                  'Scan QR with GPay, PhonePe, Paytm or BHIM',
+                  `Pay exactly ₹${serverAmount.toFixed(2)} — amount is pre-filled`,
+                  'Complete the payment in your UPI app',
+                  'Click below to automatically verify your payment & receive your pass'
+                ].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5 text-[11px] text-slate-400">
+                    <span className="w-4 h-4 rounded-full bg-sky-500/20 border border-sky-500/40 text-sky-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    {s}
+                  </div>
+                ))}
+              </div>
 
-              {/* Main Checkout Button */}
               <button
-                onClick={handleOpenRazorpayCheckout}
-                disabled={isLaunchingCheckout}
-                className="w-full py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+                onClick={() => setStep('processing_payment')}
+                className="w-full py-4 rounded-2xl text-sm font-black bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
-                {isLaunchingCheckout ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Opening Razorpay Gateway...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-5 h-5" />
-                    Pay ₹{serverAmount.toFixed(2)} with Razorpay
-                  </>
-                )}
+                <CheckCircle2 className="w-5 h-5" />
+                I Have Paid — Verify Payment
               </button>
 
-              <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-                Clicking above launches Razorpay. Upon completing payment, your status updates to{' '}
-                <strong className="text-white">PAID</strong> automatically with an official pass generated.
+              <p className="text-[10px] text-slate-500 text-center font-mono">
+                Order Ref: {paymentIntentId || registrationId}
               </p>
             </div>
           )}
 
-          {/* ─── STEP: VERIFYING SIGNATURE ─── */}
-          {step === 'verifying_signature' && (
-            <div className="py-10 flex flex-col items-center justify-center gap-4 text-center">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-2xl bg-sky-500/20 animate-ping opacity-75" />
-                <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 border border-sky-300 flex items-center justify-center shadow-xl shadow-sky-500/40">
-                  <RefreshCw className="w-7 h-7 text-white animate-spin" />
+          {/* ─── STEP: PROCESSING PAYMENT (AUTO-VERIFICATION) ─── */}
+          {step === 'processing_payment' && (
+            <div className="py-8 flex flex-col items-center justify-center gap-5 text-center animate-fadeIn">
+              <div className="relative w-20 h-20 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-3xl bg-sky-500/20 animate-ping opacity-60" />
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-400 border border-sky-400/50 flex items-center justify-center shadow-xl shadow-sky-500/30">
+                  <RefreshCw className="w-8 h-8 text-white animate-spin" />
                 </div>
               </div>
+
               <div>
-                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-bold mb-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-sky-300" />
-                  HMAC Cryptographic Verification
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[11px] font-bold mb-2">
+                  <Zap className="w-3 h-3 text-sky-400" />
+                  Auto-Verifying Bank Receipt
                 </div>
-                <h3 className="text-xl font-bold text-white">Verifying Payment Tokens...</h3>
-                <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
-                  Performing timing-safe HMAC SHA-256 signature verification against server secret.
+                <h3 className="text-xl font-black text-white">Processing Payment...</h3>
+                <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto leading-relaxed">
+                  Checking receiver bank account for incoming credit matching your registered phone and exact amount.
                 </p>
+              </div>
+
+              {/* Transaction details card */}
+              <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Order Reference</span>
+                  <span className="text-sky-300 font-mono font-bold">{registrationId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Expected Amount</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
+                </div>
+                {registeredPhone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Registered Mobile</span>
+                    <span className="text-slate-200 font-mono">{registeredPhone}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Elapsed</span>
+                  <span className="text-slate-400 font-mono">{processingElapsed}s</span>
+                </div>
+              </div>
+
+              {/* Real-time status badge */}
+              <div className="w-full p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                <span>Listening for live Axis Bank / UPI credit settlement...</span>
+              </div>
+
+              {/* Graceful fallback if bank SMS / network takes longer than 30s */}
+              {processingElapsed > 30 && (
+                <div className="w-full space-y-2 pt-2 animate-fadeIn">
+                  <p className="text-[11px] text-slate-400">
+                    Bank network taking a moment? You can keep waiting or provide your UTR reference as a backup:
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep('enter_utr')}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                    >
+                      Enter UTR as Backup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProcessingElapsed(0)}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition-colors"
+                    >
+                      Keep Checking
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── STEP: ENTER UTR ─── */}
+          {step === 'enter_utr' && (
+            <div className="space-y-5">
+              <div className="text-center">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center mb-3">
+                  <ShieldCheck className="w-7 h-7 text-sky-400" />
+                </div>
+                <h3 className="text-xl font-black text-white">Enter Transaction ID</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Open your UPI payment receipt and enter the <strong className="text-white">12-Digit Reference / UTR Number</strong>
+                </p>
+              </div>
+
+              {/* Amount reminder */}
+              <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-emerald-300 font-semibold block">Expected Amount:</span>
+                  <span className="text-[10px] text-slate-400 font-mono">ID: {registrationId}</span>
+                </div>
+                <span className="text-lg font-black text-emerald-400 font-mono">₹{serverAmount.toFixed(2)}</span>
+              </div>
+
+              {errorMessage && (
+                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p>{errorMessage}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleConfirmPayment} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                    UPI Transaction ID / UTR <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    ref={utrInputRef}
+                    id="utr-number-input"
+                    type="text"
+                    required
+                    value={utrNumber}
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    placeholder="e.g. 528394819203 (12-digit UTR)"
+                    className="w-full px-4 py-3.5 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
+                    autoComplete="off"
+                    inputMode="text"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                    Found in your UPI app receipt → &quot;UPI Ref No.&quot; or &quot;UTR&quot; or &quot;Transaction ID&quot;.
+                  </p>
+                </div>
+
+                {/* Where to find UTR visual card */}
+                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60 space-y-1.5">
+                  <p className="text-[11px] font-bold text-slate-300">Where to find your UTR:</p>
+                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-400">
+                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                      <span className="text-green-400 font-bold block">GPay</span>
+                      UPI Transaction ID
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                      <span className="text-purple-400 font-bold block">PhonePe</span>
+                      UTR Number
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
+                      <span className="text-sky-400 font-bold block">Paytm</span>
+                      UPI Ref No.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
+                  <p>
+                    Submitted UTR references are logged in the central SQL ledger and reconciled against our bank records before registration confirmation.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setStep('scan'); setErrorMessage(null); }}
+                    className="px-4 py-3 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 rounded-xl text-sm font-black bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all"
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    Submit For Verification
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ─── STEP: SUBMITTING ─── */}
+          {step === 'submitting' && (
+            <div className="py-12 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
+                <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Recording Payment Reference...</h3>
+                <p className="text-xs text-slate-400 mt-1">Connecting to Central FINXYORA Database</p>
+              </div>
+            </div>
+          )}
+
+          {/* ─── STEP: REVIEW REQUIRED (ACCURATE DIRECT UPI FLOW) ─── */}
+          {step === 'review_required' && (
+            <div className="py-6 flex flex-col items-center justify-center gap-5 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                <Clock className="w-8 h-8 text-amber-400" />
+              </div>
+
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold mb-2">
+                  <Clock className="w-3 h-3" />
+                  STATUS: REVIEW REQUIRED (Verification Pending)
+                </div>
+                <h3 className="text-xl font-black text-white">Payment Submitted for Verification</h3>
+                <p className="text-xs text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">
+                  Payment received or submitted for verification. Your registration will be confirmed after payment verification against bank records.
+                </p>
+              </div>
+
+              <div className="w-full p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Registration ID</span>
+                  <span className="text-sky-300 font-mono font-bold">{registrationId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Amount Due</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
+                </div>
+                {utrNumber && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Submitted UTR</span>
+                    <span className="text-amber-300 font-mono font-bold">{utrNumber}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Payee Account</span>
+                  <span className="text-white font-medium">{MERCHANT_NAME} ({MERCHANT_VPA})</span>
+                </div>
+              </div>
+
+              {statusCheckMessage && (
+                <div className="w-full p-3 rounded-xl bg-sky-950/60 border border-sky-500/30 text-sky-300 text-xs text-left flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{statusCheckMessage}</span>
+                </div>
+              )}
+
+              <div className="w-full space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCheckStatus}
+                  disabled={checkingStatus}
+                  className="w-full py-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${checkingStatus ? 'animate-spin' : ''}`} />
+                  {checkingStatus ? 'Checking Verification Ledger...' : 'Check Payment Status'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    window.location.href = `/confirmation/${registrationId}`;
+                  }}
+                  className="w-full py-3 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20"
+                >
+                  <span>View Official Registration Pass</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
 
           {/* ─── STEP: VERIFIED SUCCESS ─── */}
           {step === 'verified_success' && (
-            <div className="py-6 flex flex-col items-center justify-center gap-4 text-center animate-fadeIn">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400/60 flex items-center justify-center shadow-xl shadow-emerald-500/30">
-                <CheckCircle2 className="w-9 h-9 text-emerald-400" />
+            <div className="py-8 flex flex-col items-center justify-center gap-5 text-center">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400/50 flex items-center justify-center animate-pulse">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400" />
               </div>
 
               <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold mb-1">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Payment Verified Authoritatively
-                </div>
-                <h3 className="text-2xl font-black text-white">Payment Confirmed!</h3>
-                <p className="text-xs text-slate-300 mt-1">
-                  Your spot is locked and recorded in the database.
+                <h3 className="text-2xl font-black text-white">Payment Verified!</h3>
+                <p className="text-xs text-emerald-300 font-semibold mt-1">Registration Confirmed</p>
+                <p className="text-xs text-slate-400 mt-2 max-w-xs mx-auto">
+                  Your payment has been authoritatively verified in the central ledger. Your participation pass is ready.
                 </p>
               </div>
 
-              <div className="w-full p-4 rounded-2xl bg-slate-800/50 border border-emerald-500/30 space-y-2 text-left text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Registration ID:</span>
-                  <span className="font-mono font-bold text-white">{registrationId}</span>
+              <div className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-2 text-left text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Registration ID</span>
+                  <span className="text-white font-mono font-bold">{registrationId}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Razorpay Payment ID:</span>
-                  <span className="font-mono font-bold text-emerald-400">{verifiedPaymentId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Total Verified Amount:</span>
-                  <span className="font-bold text-emerald-400">₹{serverAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Status:</span>
-                  <span className="font-bold text-emerald-400 uppercase">PAID (CONFIRMED)</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Verified Amount</span>
+                  <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
                 </div>
               </div>
 
               <button
-                onClick={() => onPaymentSuccess(`/confirmation/${registrationId}`)}
-                className="w-full py-3.5 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all"
+                type="button"
+                onClick={() => {
+                  onPaymentSuccess(`/confirmation/${registrationId}`);
+                }}
+                className="w-full py-3.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-white flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/25 transition-all"
               >
-                <span>View Official Registration Pass</span>
+                <span>Proceed to Confirmation Pass</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-            </div>
-          )}
-
-          {/* ─── STEP: PAYMENT FAILED ─── */}
-          {step === 'payment_failed' && (
-            <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center">
-                <AlertCircle className="w-7 h-7 text-rose-400" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">Payment Incomplete</h3>
-                <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto">
-                  {errorMessage || 'Payment could not be verified. You can retry with Razorpay.'}
-                </p>
-              </div>
-
-              <div className="w-full space-y-2 pt-2">
-                <button
-                  onClick={() => setStep('ready_to_pay')}
-                  className="w-full py-3.5 rounded-xl font-bold text-xs bg-sky-600 hover:bg-sky-500 text-white transition-colors"
-                >
-                  Retry Payment
-                </button>
-                <button
-                  onClick={onClose}
-                  className="w-full py-2.5 rounded-xl font-semibold text-xs text-slate-400 hover:text-white transition-colors"
-                >
-                  Close
-                </button>
-              </div>
             </div>
           )}
 

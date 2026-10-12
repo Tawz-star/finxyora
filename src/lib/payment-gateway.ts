@@ -88,31 +88,7 @@ export function verifyRazorpayWebhookSignature(
   if (!rawBody || !signature || !secret) return false;
   try {
     const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-    const expBuf = Buffer.from(expected, 'utf-8');
-    const sigBuf = Buffer.from(signature, 'utf-8');
-    if (expBuf.length !== sigBuf.length) return false;
-    return crypto.timingSafeEqual(expBuf, sigBuf);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Verify Razorpay Payment Signature (HMAC SHA256) returned from checkout modal.
- */
-export function verifyRazorpayPaymentSignature(
-  orderId: string,
-  paymentId: string,
-  signature: string,
-  secret: string
-): boolean {
-  if (!orderId || !paymentId || !signature || !secret) return false;
-  try {
-    const expected = crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest('hex');
-    const expBuf = Buffer.from(expected, 'utf-8');
-    const sigBuf = Buffer.from(signature, 'utf-8');
-    if (expBuf.length !== sigBuf.length) return false;
-    return crypto.timingSafeEqual(expBuf, sigBuf);
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
   } catch {
     return false;
   }
