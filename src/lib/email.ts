@@ -529,3 +529,148 @@ FinTech Association
   });
 }
 
+export interface PaymentVerifiedEmailPayload {
+  recipientName: string;
+  recipientEmail: string;
+  recipientPhone?: string;
+  registrationId: string;
+  referenceType: 'event' | 'stall';
+  itemTitle: string;
+  amount: number;
+  utrNumber: string;
+  collegeName?: string;
+  participantCount?: number;
+  participants?: Array<{
+    fullName: string;
+    rollNumber: string;
+    department: string;
+    yearOfStudy: string;
+    section: string;
+  }>;
+}
+
+export async function sendPaymentVerifiedConfirmationEmail(data: PaymentVerifiedEmailPayload): Promise<EmailSendResult> {
+  const subject = `[FINXYORA 2026] Payment Verified & Completed — ${data.itemTitle} (ID: ${data.registrationId})`;
+
+  const participantsList = (data.participants && data.participants.length > 0)
+    ? data.participants
+        .map((p, idx) => `  ${idx + 1}. ${p.fullName} (Roll: ${p.rollNumber}, Dept: ${p.department}, Year: ${p.yearOfStudy})`)
+        .join('\n')
+    : '';
+
+  const textBody = `
+FINXYORA 2026 — PAYMENT VERIFIED & COMPLETED
+===========================================
+Dear ${data.recipientName},
+
+Great news! Your payment for "${data.itemTitle}" has been officially VERIFIED & COMPLETED by the festival organizing committee.
+
+Your registration is now officially confirmed and authorized.
+
+VERIFICATION SUMMARY:
+-------------------------------------------
+Registration ID:    ${data.registrationId}
+Event / Item:       ${data.itemTitle}
+${data.collegeName ? `College Name:       ${data.collegeName}\n` : ''}Amount Verified:    ₹${data.amount.toFixed(2)}
+UPI Transaction ID: ${data.utrNumber}
+Payment Status:     Verified / Completed
+${data.participantCount ? `Total Members:      ${data.participantCount}\n` : ''}
+${participantsList ? `PARTICIPANT LIST:\n${participantsList}\n\n` : ''}OFFICIAL DIGITAL PASS:
+Access and print your authorized digital festival entry pass with entry QR code here:
+https://finxyora.vercel.app/confirmation/${data.registrationId}
+
+Please present your digital or printed QR pass at the festival registration reception.
+
+For any inquiries, contact our student leadership:
+• Tawfeeq Ahmed (Vice President): +91 91599 11721
+• Sriram (President): +91 86828 79906
+
+Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+===========================================
+PG & Research Department of Commerce & FinTech Association
+Bishop Heber College (Autonomous), Tiruchirappalli
+`;
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; background: #0b132b; color: #ffffff; padding: 24px; border-radius: 12px; max-width: 600px;">
+      <div style="display: flex; align-items: center; margin-bottom: 16px;">
+        <h2 style="color: #38bdf8; margin: 0; font-size: 20px;">FINXYORA 2026 — Payment Verified &amp; Completed</h2>
+      </div>
+
+      <div style="background: rgba(16, 185, 129, 0.15); border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
+        <p style="margin: 0; color: #6ee7b7; font-weight: bold; font-size: 14px;">
+          ✓ Payment Verification Successful &bull; Status: Verified / Completed
+        </p>
+      </div>
+
+      <p style="font-size: 14px; color: #e2e8f0; line-height: 1.6;">
+        Dear <strong>${data.recipientName}</strong>,
+      </p>
+      <p style="font-size: 14px; color: #cbd5e1; line-height: 1.6;">
+        Your payment for <strong style="color: #facc15;">${data.itemTitle}</strong> has been verified against our bank records. Your participation is now officially <strong>Confirmed &amp; Authorized</strong>.
+      </p>
+
+      <div style="background: rgba(255,255,255,0.05); padding: 18px; border-radius: 8px; border: 1px solid #334155; margin: 20px 0;">
+        <h3 style="color: #38bdf8; margin-top: 0; font-size: 15px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Authorized Registration Summary</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #f1f5f9;">
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8; width: 150px;"><strong>Registration ID:</strong></td>
+            <td style="padding: 5px 0; font-family: monospace; font-weight: bold; color: #38bdf8;">${data.registrationId}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Item / Event:</strong></td>
+            <td style="padding: 5px 0; font-weight: bold;">${data.itemTitle}</td>
+          </tr>
+          ${data.collegeName ? `
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Institution:</strong></td>
+            <td style="padding: 5px 0;">${data.collegeName}</td>
+          </tr>` : ''}
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Amount Paid:</strong></td>
+            <td style="padding: 5px 0; font-weight: bold; color: #4ade80;">₹${data.amount.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>UPI Transaction ID:</strong></td>
+            <td style="padding: 5px 0; font-family: monospace; color: #facc15;">${data.utrNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Payment Status:</strong></td>
+            <td style="padding: 5px 0; font-weight: bold; color: #34d399;">Verified / Completed</td>
+          </tr>
+          ${data.participantCount ? `
+          <tr>
+            <td style="padding: 5px 0; color: #94a3b8;"><strong>Participants:</strong></td>
+            <td style="padding: 5px 0;">${data.participantCount} Member(s)</td>
+          </tr>` : ''}
+        </table>
+      </div>
+
+      <div style="text-align: center; margin: 26px 0;">
+        <a href="https://finxyora.vercel.app/confirmation/${data.registrationId}" style="background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%); color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);">
+          View &amp; Print Official Digital Pass &rarr;
+        </a>
+      </div>
+
+      <p style="font-size: 12px; color: #94a3b8; line-height: 1.5;">
+        Please present your digital pass QR code at the event entrance for expedited delegate check-in.
+      </p>
+
+      <hr style="border-color: #1e293b; margin: 20px 0;" />
+      <div style="font-size: 12px; color: #64748b;">
+        Regards,<br/>
+        <strong style="color: #f1f5f9;">FINXYORA 2026 Organizing Committee</strong><br/>
+        PG &amp; Research Department of Commerce &bull; FinTech Association<br/>
+        Bishop Heber College (Autonomous), Tiruchirappalli &bull; 620 017
+      </div>
+    </div>
+  `;
+
+  return sendEmailNotification(subject, textBody, htmlBody, {
+    to: data.recipientEmail,
+    cc: DESTINATION_EMAIL,
+    replyTo: DESTINATION_EMAIL
+  });
+}
+
+

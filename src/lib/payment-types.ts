@@ -17,6 +17,8 @@ export interface PaymentRecord {
   gateway_payment_id?: string | null;
   user_reference?: string | null;
   provider_reference?: string | null;
+  payment_method?: string | null;
+  payer_email?: string | null;
   status: string;
   registration_type: 'REAL' | 'TEST';
   verified_at?: string | null;
@@ -36,6 +38,19 @@ export interface PaymentRecord {
   updated_at?: string;
   item_title?: string;
   participant_count?: number;
+  payment_screenshot?: string | null;
+  leader_name?: string | null;
+  leader_email?: string | null;
+  leader_phone?: string | null;
+  college_name?: string | null;
+  team_name?: string | null;
+  participants_list?: Array<{
+    fullName: string;
+    rollNumber: string;
+    department: string;
+    yearOfStudy: string;
+    section: string;
+  }>;
 }
 
 export function normalizePaymentStatus(status?: string | null): PaymentStatus {

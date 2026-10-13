@@ -62,9 +62,30 @@ export default async function AboutCommercePage() {
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
             Conceived as a collaborative platform between academic theorists and industry practitioners, FINXYORA is designed to transcend classroom textbooks. Students are pushed into high-velocity competitive arenas simulating mergers, AI prompt architectures, currency arbitrage, and commercial runway management.
           </p>
-          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 mt-4 space-y-2">
-            <span className="font-bold text-white block">Department Leadership</span>
-            <p className="text-slate-400">Head of Department &bull; Senior Faculty Advisory Council &bull; Student Fest Conveners</p>
+          <div className="space-y-3 pt-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Department Leadership</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/30 text-xs">
+                <span className="text-[10px] font-bold text-amber-400 uppercase block">Patron</span>
+                <span className="font-bold text-white block">Dr. J. Princy Merlin</span>
+                <span className="text-[11px] text-slate-400">Principal, Bishop Heber College</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-sky-500/30 text-xs">
+                <span className="text-[10px] font-bold text-sky-400 uppercase block">Convenor</span>
+                <span className="font-bold text-white block">Dr. D. Fennala Agnes Iylin</span>
+                <span className="text-[11px] text-slate-400">Head &amp; Assoc. Prof, Dept of Commerce</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-indigo-500/30 text-xs">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase block">Co-Convenor</span>
+                <span className="font-bold text-white block">Dr. M. Anushya</span>
+                <span className="text-[11px] text-slate-400">Coordinator, B.Com &amp; B.Com FinTech</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-emerald-500/30 text-xs">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase block">Staff-in-Charge</span>
+                <span className="font-bold text-white block">Mrs. Varsha K</span>
+                <span className="text-[11px] text-slate-400">Asst. Prof, Dept of Commerce</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

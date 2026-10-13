@@ -15,7 +15,10 @@ import {
   IndianRupee,
   Zap,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Upload,
+  ImageIcon,
+  Trash2
 } from 'lucide-react';
 
 export interface EventRegistrationPayload {
@@ -112,7 +115,11 @@ export default function PaymentModal({
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
+  const [paymentScreenshot, setPaymentScreenshot] = useState<string>('');
+  const [screenshotFileName, setScreenshotFileName] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const utrInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const registeredPhone = payerPhone || eventData?.leaderPhone || stallData?.contactPhone || '';
 
@@ -124,6 +131,8 @@ export default function PaymentModal({
     setErrorMessage(null);
     setStatusCheckMessage(null);
     setUtrNumber('');
+    setPaymentScreenshot('');
+    setScreenshotFileName('');
     setQrLoaded(false);
     setQrError(false);
 
@@ -190,6 +199,65 @@ export default function PaymentModal({
     }
   }, [step]);
 
+  const handleImageChange = (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please select a valid image file (PNG, JPG, JPEG, WebP).');
+      return;
+    }
+    setErrorMessage(null);
+    setIsUploadingImage(true);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            setPaymentScreenshot(dataUrl);
+            setScreenshotFileName(file.name);
+          } else {
+            setPaymentScreenshot(e.target?.result as string);
+            setScreenshotFileName(file.name);
+          }
+        } catch {
+          setPaymentScreenshot(e.target?.result as string);
+          setScreenshotFileName(file.name);
+        } finally {
+          setIsUploadingImage(false);
+        }
+      };
+      img.onerror = () => {
+        setIsUploadingImage(false);
+        setErrorMessage('Failed to read image file.');
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => {
+      setIsUploadingImage(false);
+      setErrorMessage('Failed to read image file.');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const copyToClipboard = (text: string, type: 'upi' | 'amount') => {
     navigator.clipboard.writeText(text).catch(() => {});
     if (type === 'upi') {
@@ -201,7 +269,7 @@ export default function PaymentModal({
     }
   };
 
-  // Submit 12-digit UTR reference
+  // Submit UTR reference and Payment Screenshot
   const handleConfirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -213,6 +281,11 @@ export default function PaymentModal({
     }
     if (cleanUtr.length < 6) {
       setErrorMessage('UTR must be at least 6 characters (typically a 12-digit bank reference number).');
+      return;
+    }
+
+    if (!paymentScreenshot) {
+      setErrorMessage('Please upload your payment screenshot (receipt) before submitting for verification.');
       return;
     }
 
@@ -228,6 +301,7 @@ export default function PaymentModal({
           registrationId,
           expectedAmount: serverAmount,
           utrNumber: cleanUtr,
+          paymentScreenshot,
           timestamp: Date.now(),
           eventData,
           stallData
@@ -237,8 +311,6 @@ export default function PaymentModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Payment confirmation failed');
 
-      // Authentic verification rule:
-      // Direct UPI is recorded as REVIEW_REQUIRED, not fabricated auto-success!
       if (data.status === 'PAID') {
         setStep('verified_success');
         setTimeout(() => {
@@ -502,11 +574,11 @@ export default function PaymentModal({
               </div>
 
               <button
-                onClick={() => setStep('processing_payment')}
+                onClick={() => setStep('enter_utr')}
                 className="w-full py-4 rounded-2xl text-sm font-black bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-400 hover:from-blue-500 hover:to-sky-300 text-white shadow-xl shadow-sky-500/30 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 <CheckCircle2 className="w-5 h-5" />
-                I Have Paid — Verify Payment
+                I Have Paid — Submit UTR &amp; Screenshot
               </button>
 
               <p className="text-[10px] text-slate-500 text-center font-mono">
@@ -564,43 +636,28 @@ export default function PaymentModal({
                 <span>Listening for live Axis Bank / UPI credit settlement...</span>
               </div>
 
-              {/* Graceful fallback if bank SMS / network takes longer than 30s */}
-              {processingElapsed > 30 && (
-                <div className="w-full space-y-2 pt-2 animate-fadeIn">
-                  <p className="text-[11px] text-slate-400">
-                    Bank network taking a moment? You can keep waiting or provide your UTR reference as a backup:
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep('enter_utr')}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                    >
-                      Enter UTR as Backup
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProcessingElapsed(0)}
-                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition-colors"
-                    >
-                      Keep Checking
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className="w-full pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep('enter_utr')}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                >
+                  Enter UTR &amp; Upload Screenshot Instead &rarr;
+                </button>
+              </div>
             </div>
           )}
 
-          {/* ─── STEP: ENTER UTR ─── */}
+          {/* ─── STEP: ENTER UTR & SCREENSHOT ─── */}
           {step === 'enter_utr' && (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="text-center">
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center mb-3">
-                  <ShieldCheck className="w-7 h-7 text-sky-400" />
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center mb-2">
+                  <ShieldCheck className="w-6 h-6 text-sky-400" />
                 </div>
-                <h3 className="text-xl font-black text-white">Enter Transaction ID</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Open your UPI payment receipt and enter the <strong className="text-white">12-Digit Reference / UTR Number</strong>
+                <h3 className="text-lg font-black text-white">Payment Verification</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Provide your UPI Transaction ID and upload your payment screenshot
                 </p>
               </div>
 
@@ -620,9 +677,10 @@ export default function PaymentModal({
                 </div>
               )}
 
-              <form onSubmit={handleConfirmPayment} className="space-y-4">
+              <form onSubmit={handleConfirmPayment} className="space-y-3.5">
+                {/* 1. UPI Transaction ID */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
                     UPI Transaction ID / UTR <span className="text-rose-400">*</span>
                   </label>
                   <input
@@ -633,42 +691,100 @@ export default function PaymentModal({
                     value={utrNumber}
                     onChange={(e) => setUtrNumber(e.target.value)}
                     placeholder="e.g. 528394819203 (12-digit UTR)"
-                    className="w-full px-4 py-3.5 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
                     autoComplete="off"
                     inputMode="text"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                  <p className="text-[10px] text-slate-500 mt-1">
                     Found in your UPI app receipt → &quot;UPI Ref No.&quot; or &quot;UTR&quot; or &quot;Transaction ID&quot;.
                   </p>
                 </div>
 
-                {/* Where to find UTR visual card */}
-                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60 space-y-1.5">
-                  <p className="text-[11px] font-bold text-slate-300">Where to find your UTR:</p>
-                  <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-400">
-                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
-                      <span className="text-green-400 font-bold block">GPay</span>
-                      UPI Transaction ID
+                {/* 2. Payment Screenshot Upload Interface */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1">
+                    Payment Screenshot <span className="text-rose-400">*</span>
+                  </label>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImageChange(e.target.files?.[0])}
+                  />
+
+                  {paymentScreenshot ? (
+                    <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <ImageIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span className="text-xs text-white font-medium truncate max-w-[180px]">
+                            {screenshotFileName || 'Screenshot selected'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-2 py-1 text-[11px] text-sky-400 hover:text-sky-300 font-semibold rounded bg-sky-500/10 hover:bg-sky-500/20 transition-colors"
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setPaymentScreenshot(''); setScreenshotFileName(''); }}
+                            className="p-1 text-slate-400 hover:text-rose-400 rounded transition-colors"
+                            title="Remove Screenshot"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="relative rounded-lg overflow-hidden border border-slate-700/80 max-h-36 flex items-center justify-center bg-slate-950">
+                        <img
+                          src={paymentScreenshot}
+                          alt="Uploaded payment screenshot preview"
+                          className="max-h-36 object-contain w-auto rounded"
+                        />
+                      </div>
+                      <p className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium">
+                        <CheckCircle2 className="w-3 h-3" /> Screenshot captured and ready for submission
+                      </p>
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
-                      <span className="text-purple-400 font-bold block">PhonePe</span>
-                      UTR Number
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-5 rounded-xl border-2 border-dashed border-slate-700 hover:border-sky-500/60 bg-slate-900/40 hover:bg-slate-900/70 transition-all cursor-pointer text-center group"
+                    >
+                      <div className="w-10 h-10 mx-auto rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 mb-2 group-hover:scale-105 transition-transform">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-200 group-hover:text-sky-300 transition-colors">
+                        Click to upload payment screenshot
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        PNG, JPG, WebP from GPay / PhonePe / Paytm / Bank App
+                      </p>
                     </div>
-                    <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700">
-                      <span className="text-sky-400 font-bold block">Paytm</span>
-                      UPI Ref No.
-                    </div>
-                  </div>
+                  )}
+
+                  {isUploadingImage && (
+                    <p className="text-[11px] text-sky-400 flex items-center gap-1 mt-1">
+                      <RefreshCw className="w-3 h-3 animate-spin" /> Optimizing screenshot...
+                    </p>
+                  )}
                 </div>
 
                 <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-start gap-2">
                   <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
                   <p>
-                    Submitted UTR references are logged in the central SQL ledger and reconciled against our bank records before registration confirmation.
+                    Your submission status will be set to <strong className="text-amber-300 font-bold">&quot;Pending upon submission&quot;</strong> and verified by festival staff.
                   </p>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => { setStep('scan'); setErrorMessage(null); }}
@@ -701,21 +817,21 @@ export default function PaymentModal({
             </div>
           )}
 
-          {/* ─── STEP: REVIEW REQUIRED (ACCURATE DIRECT UPI FLOW) ─── */}
+          {/* ─── STEP: REVIEW REQUIRED / PENDING UPON SUBMISSION ─── */}
           {step === 'review_required' && (
-            <div className="py-6 flex flex-col items-center justify-center gap-5 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                <Clock className="w-8 h-8 text-amber-400" />
+            <div className="py-6 flex flex-col items-center justify-center gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                <Clock className="w-7 h-7 text-amber-400" />
               </div>
 
               <div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold mb-2">
                   <Clock className="w-3 h-3" />
-                  STATUS: REVIEW REQUIRED (Verification Pending)
+                  STATUS: Pending upon submission
                 </div>
                 <h3 className="text-xl font-black text-white">Payment Submitted for Verification</h3>
-                <p className="text-xs text-slate-300 mt-2 max-w-sm mx-auto leading-relaxed">
-                  Payment received or submitted for verification. Your registration will be confirmed after payment verification against bank records.
+                <p className="text-xs text-slate-300 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                  Your UPI Transaction ID and payment screenshot have been recorded. Status: <strong className="text-amber-300">Pending upon submission</strong>. Your registration will be confirmed once organizers mark it as Verified / Completed.
                 </p>
               </div>
 
@@ -725,7 +841,7 @@ export default function PaymentModal({
                   <span className="text-sky-300 font-mono font-bold">{registrationId}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Amount Due</span>
+                  <span className="text-slate-400">Amount Paid</span>
                   <span className="text-emerald-400 font-mono font-bold">₹{serverAmount.toFixed(2)}</span>
                 </div>
                 {utrNumber && (
@@ -735,10 +851,23 @@ export default function PaymentModal({
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Payee Account</span>
-                  <span className="text-white font-medium">{MERCHANT_NAME} ({MERCHANT_VPA})</span>
+                  <span className="text-slate-400">Status</span>
+                  <span className="text-amber-300 font-semibold">Pending upon submission</span>
                 </div>
               </div>
+
+              {paymentScreenshot && (
+                <div className="w-full p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-left">
+                  <span className="text-xs text-slate-400 block mb-2 font-medium">Uploaded Screenshot Preview</span>
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700/80 max-h-36 flex items-center justify-center bg-slate-950">
+                    <img
+                      src={paymentScreenshot}
+                      alt="Uploaded payment screenshot"
+                      className="max-h-36 object-contain w-auto rounded-lg"
+                    />
+                  </div>
+                </div>
+              )}
 
               {statusCheckMessage && (
                 <div className="w-full p-3 rounded-xl bg-sky-950/60 border border-sky-500/30 text-sky-300 text-xs text-left flex items-start gap-2">
@@ -747,7 +876,7 @@ export default function PaymentModal({
                 </div>
               )}
 
-              <div className="w-full space-y-2.5 pt-2">
+              <div className="w-full space-y-2.5 pt-1">
                 <button
                   type="button"
                   onClick={handleCheckStatus}

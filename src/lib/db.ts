@@ -4,14 +4,17 @@ import fs from 'node:fs';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import { DIRECT_UPI_CONFIG, buildDynamicUpiUrl, buildQrCodeImageUrl, getPaymentGatewayInfo } from './payment-gateway';
-import { sendRejectionRefundEmail } from './email';
+import { sendRejectionRefundEmail, sendPaymentVerifiedConfirmationEmail } from './email';
 
 // =============================================================
 // DATABASE ENGINE CONFIGURATION
 // =============================================================
 
 // Priority: PostgreSQL via DATABASE_URL or POSTGRES_URL (Single Source of Truth)
-const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.FINXYORA_DATABASE_URL || '';
+const RAW_DATABASE_URL = (process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.FINXYORA_DATABASE_URL || '').trim();
+const DATABASE_URL = ((RAW_DATABASE_URL.startsWith('postgres://') || RAW_DATABASE_URL.startsWith('postgresql://')) && !RAW_DATABASE_URL.includes('[SENSITIVE]'))
+  ? RAW_DATABASE_URL
+  : '';
 
 // Persistent directory for local development SQLite fallback
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -183,6 +186,7 @@ export interface EventRegistrationRecord {
   email_status?: string;
   email_sent_at?: string;
   email_error?: string;
+  payment_screenshot?: string | null;
   created_at: string;
   updated_at: string;
   participants?: ParticipantRecord[];
@@ -232,6 +236,7 @@ export interface StallBookingRecord {
   email_status?: string;
   email_sent_at?: string;
   email_error?: string;
+  payment_screenshot?: string | null;
   created_at: string;
   updated_at: string;
   option_name?: string;
@@ -273,6 +278,7 @@ export type PaymentStatus =
   | 'FAILED'
   | 'EXPIRED'
   | 'REVIEW_REQUIRED'
+  | 'Pending upon submission'
   | 'pending'
   | 'submitted'
   | 'verified'
@@ -285,7 +291,7 @@ export function normalizePaymentStatus(status?: string | null): 'PENDING' | 'VER
   const s = String(status || '').toUpperCase();
   if (s === 'REFUNDED') return 'REFUNDED';
   if (s === 'PAID' || s === 'VERIFIED' || s === 'SUCCESSFUL' || s === 'CONFIRMED' || s === 'APPROVED') return 'PAID';
-  if (s === 'REVIEW_REQUIRED' || s === 'SUBMITTED' || s === 'PENDING_REVIEW') return 'REVIEW_REQUIRED';
+  if (s === 'REVIEW_REQUIRED' || s === 'SUBMITTED' || s === 'PENDING_REVIEW' || s.includes('PENDING UPON SUBMISSION')) return 'REVIEW_REQUIRED';
   if (s === 'VERIFYING') return 'VERIFYING';
   if (s === 'FAILED' || s === 'REJECTED' || s === 'CANCELLED') return 'FAILED';
   if (s === 'EXPIRED') return 'EXPIRED';
@@ -326,6 +332,19 @@ export interface PaymentRecord {
   email_error?: string;
   item_title?: string;
   participant_count?: number;
+  payment_screenshot?: string | null;
+  leader_name?: string | null;
+  leader_email?: string | null;
+  leader_phone?: string | null;
+  college_name?: string | null;
+  team_name?: string | null;
+  participants_list?: Array<{
+    fullName: string;
+    rollNumber: string;
+    department: string;
+    yearOfStudy: string;
+    section: string;
+  }>;
 }
 
 export interface AuditLogRecord {
@@ -569,6 +588,9 @@ async function initAllSchemas(): Promise<void> {
     await safeAddPgCol('stall_bookings', 'email_status', "VARCHAR(50) DEFAULT 'NONE'");
     await safeAddPgCol('stall_bookings', 'email_sent_at', 'VARCHAR(100)');
     await safeAddPgCol('stall_bookings', 'email_error', 'TEXT');
+    await safeAddPgCol('payments', 'payment_screenshot', 'TEXT');
+    await safeAddPgCol('event_registrations', 'payment_screenshot', 'TEXT');
+    await safeAddPgCol('stall_bookings', 'payment_screenshot', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -796,6 +818,9 @@ async function initAllSchemas(): Promise<void> {
     safeAddSqCol('stall_bookings', 'email_status', "TEXT NOT NULL DEFAULT 'NONE'");
     safeAddSqCol('stall_bookings', 'email_sent_at', 'TEXT');
     safeAddSqCol('stall_bookings', 'email_error', 'TEXT');
+    safeAddSqCol('payments', 'payment_screenshot', 'TEXT');
+    safeAddSqCol('event_registrations', 'payment_screenshot', 'TEXT');
+    safeAddSqCol('stall_bookings', 'payment_screenshot', 'TEXT');
 
     // Create Indexes after columns are verified to exist
     try {
@@ -1218,6 +1243,7 @@ export interface ClientRegistrationPayload {
   registrationId?: string;
   expectedAmount: number;
   utrNumber: string;
+  paymentScreenshot?: string;
   timestamp?: number;
   isTest?: boolean;
   eventData?: {
@@ -1598,12 +1624,13 @@ export async function submitPaymentUtr(payload: {
   registrationId: string;
   referenceType?: 'event' | 'stall';
   utrNumber: string;
+  paymentScreenshot?: string;
   isTest?: boolean;
 }): Promise<{
   success: boolean;
   registrationId: string;
   paymentId: string;
-  status: 'REVIEW_REQUIRED';
+  status: 'Pending upon submission' | 'REVIEW_REQUIRED';
   amount: number;
   utrNumber: string;
   message: string;
@@ -1617,6 +1644,7 @@ export async function submitPaymentUtr(payload: {
 
   const isTest = Boolean(payload.isTest);
   const now = new Date().toISOString();
+  const screenshot = payload.paymentScreenshot?.trim() || null;
 
   // Prevent duplicate UTR submissions for REAL registrations
   if (!isTest) {
@@ -1647,8 +1675,8 @@ export async function submitPaymentUtr(payload: {
         INSERT INTO payments (
           id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
           amount, currency, status, payer_email, payer_phone, payment_method,
-          user_reference, registration_type, created_at, verification_method
-        ) VALUES (?, 'event', ?, ?, ?, ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW')
+          user_reference, registration_type, created_at, verification_method, payment_screenshot
+        ) VALUES (?, 'event', ?, ?, ?, ?, 'INR', 'Pending upon submission', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW', ?)
       `, [
         payId,
         evt.id,
@@ -1659,7 +1687,8 @@ export async function submitPaymentUtr(payload: {
         evt.leader_phone,
         cleanUtr,
         evt.registration_type,
-        now
+        now,
+        screenshot
       ]);
       pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [payId]);
     } else {
@@ -1670,8 +1699,8 @@ export async function submitPaymentUtr(payload: {
           INSERT INTO payments (
             id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
             amount, currency, status, payer_email, payer_phone, payment_method,
-            user_reference, registration_type, created_at, verification_method
-          ) VALUES (?, 'stall', ?, ?, ?, ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW')
+            user_reference, registration_type, created_at, verification_method, payment_screenshot
+          ) VALUES (?, 'stall', ?, ?, ?, ?, 'INR', 'Pending upon submission', ?, ?, 'UPI - GPay', ?, ?, ?, 'DIRECT_UPI_REVIEW', ?)
         `, [
           payId,
           stl.id,
@@ -1682,7 +1711,8 @@ export async function submitPaymentUtr(payload: {
           stl.contact_phone,
           cleanUtr,
           stl.registration_type,
-          now
+          now,
+          screenshot
         ]);
         pay = await queryOne<PaymentRecord>('SELECT * FROM payments WHERE id = ?', [payId]);
       }
@@ -1693,33 +1723,36 @@ export async function submitPaymentUtr(payload: {
     throw new Error(`Registration record not found for ID: ${payload.registrationId}`);
   }
 
-  // Update payment status to REVIEW_REQUIRED
+  // Update payment status to Pending upon submission with screenshot
   await execute(`
     UPDATE payments SET
       gateway_payment_id = ?,
       user_reference = ?,
-      status = 'REVIEW_REQUIRED',
+      payment_screenshot = COALESCE(?, payment_screenshot),
+      status = 'Pending upon submission',
       verification_method = 'DIRECT_UPI_REVIEW'
     WHERE id = ?
-  `, [cleanUtr, cleanUtr, pay.id]);
+  `, [cleanUtr, cleanUtr, screenshot, pay.id]);
 
   // Update registration record
   if (pay.reference_type === 'event') {
     await execute(`
       UPDATE event_registrations SET
-        payment_status = 'REVIEW_REQUIRED',
+        payment_status = 'Pending upon submission',
         transaction_id = ?,
+        payment_screenshot = COALESCE(?, payment_screenshot),
         updated_at = ?
       WHERE id = ?
-    `, [cleanUtr, now, pay.reference_id]);
+    `, [cleanUtr, screenshot, now, pay.reference_id]);
   } else {
     await execute(`
       UPDATE stall_bookings SET
-        payment_status = 'REVIEW_REQUIRED',
+        payment_status = 'Pending upon submission',
         transaction_id = ?,
+        payment_screenshot = COALESCE(?, payment_screenshot),
         updated_at = ?
       WHERE id = ?
-    `, [cleanUtr, now, pay.reference_id]);
+    `, [cleanUtr, screenshot, now, pay.reference_id]);
   }
 
   await logAuditEvent(
@@ -1891,7 +1924,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
   }
 
   const now = new Date().toISOString();
-  const paymentStatus = 'REVIEW_REQUIRED';
+  const screenshot = payload.paymentScreenshot?.trim() || null;
+  const paymentStatus = 'Pending upon submission';
 
   if (payload.referenceType === 'event') {
     if (!payload.eventData) throw new Error('Missing event registration details');
@@ -1923,19 +1957,20 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
     if (existingReg) {
       await execute(`
         UPDATE event_registrations SET
-          payment_status = 'REVIEW_REQUIRED',
+          payment_status = 'Pending upon submission',
           transaction_id = ?,
+          payment_screenshot = COALESCE(?, payment_screenshot),
           updated_at = ?
         WHERE id = ?
-      `, [cleanUtr, now, regId]);
+      `, [cleanUtr, screenshot, now, regId]);
     } else {
       await execute(`
         INSERT INTO event_registrations (
           id, event_id, college_name, college_location, team_name,
           leader_name, leader_email, leader_phone, participant_count,
           total_fee, payment_status, registration_status, registration_type,
-          transaction_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          transaction_id, payment_screenshot, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         regId,
         event.id,
@@ -1951,6 +1986,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         regStatus,
         regType,
         cleanUtr,
+        screenshot,
         now,
         now
       ]);
@@ -1983,18 +2019,19 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         UPDATE payments SET
           gateway_payment_id = ?,
           user_reference = ?,
-          status = 'REVIEW_REQUIRED',
+          payment_screenshot = COALESCE(?, payment_screenshot),
+          status = 'Pending upon submission',
           verification_method = 'DIRECT_UPI_REVIEW'
         WHERE id = ?
-      `, [cleanUtr, cleanUtr, existingPay.id]);
+      `, [cleanUtr, cleanUtr, screenshot, existingPay.id]);
     } else {
       await execute(`
         INSERT INTO payments (
           id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
           gateway_signature, amount, currency, status, payer_email, payer_phone,
           payment_method, idempotency_key, registration_type, created_at,
-          user_reference, verification_method
-        ) VALUES (?, 'event', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW')
+          user_reference, verification_method, payment_screenshot
+        ) VALUES (?, 'event', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'Pending upon submission', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW', ?)
       `, [
         payId,
         regId,
@@ -2006,7 +2043,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         payId,
         regType,
         now,
-        cleanUtr
+        cleanUtr,
+        screenshot
       ]);
     }
 
@@ -2018,7 +2056,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       JSON.stringify({
         amount: calculatedFee,
         utrNumber: cleanUtr,
-        paymentStatus: 'REVIEW_REQUIRED',
+        paymentStatus: 'Pending upon submission',
         registrationType: regType,
         event: event.title
       })
@@ -2031,7 +2069,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       amount: calculatedFee,
       utrNumber: cleanUtr,
       registrationType: regType,
-      paymentStatus: 'REVIEW_REQUIRED',
+      paymentStatus: 'Pending upon submission',
       ticketDetails: {
         eventName: event.title,
         collegeName,
@@ -2086,15 +2124,16 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
     if (existingBooking) {
       await execute(`
         UPDATE stall_bookings SET
-          payment_status = 'REVIEW_REQUIRED',
+          payment_status = 'Pending upon submission',
           transaction_id = ?,
+          payment_screenshot = COALESCE(?, payment_screenshot),
           applicant_type = ?,
           duration_days = ?,
           selected_day = ?,
           booking_dates = ?,
           updated_at = ?
         WHERE id = ?
-      `, [cleanUtr, cleanApplicantType, validDays, cleanSelectedDay, cleanBookingDates, now, bookingId]);
+      `, [cleanUtr, screenshot, cleanApplicantType, validDays, cleanSelectedDay, cleanBookingDates, now, bookingId]);
     } else {
       await execute(`
         INSERT INTO stall_bookings (
@@ -2102,8 +2141,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
           department_class, contact_name, contact_email, contact_phone, business_details,
           products_services, stalls_requested, duration_days, selected_day, booking_dates,
           has_electricity, total_amount, payment_status,
-          status, registration_type, transaction_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'REVIEW_REQUIRED', 'pending', ?, ?, ?, ?)
+          status, registration_type, transaction_id, payment_screenshot, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending upon submission', 'pending', ?, ?, ?, ?, ?)
       `, [
         bookingId,
         opt.id,
@@ -2125,6 +2164,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         totalAmount,
         regType,
         cleanUtr,
+        screenshot,
         now,
         now
       ]);
@@ -2136,18 +2176,19 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         UPDATE payments SET
           gateway_payment_id = ?,
           user_reference = ?,
-          status = 'REVIEW_REQUIRED',
+          payment_screenshot = COALESCE(?, payment_screenshot),
+          status = 'Pending upon submission',
           verification_method = 'DIRECT_UPI_REVIEW'
         WHERE id = ?
-      `, [cleanUtr, cleanUtr, existingPay.id]);
+      `, [cleanUtr, cleanUtr, screenshot, existingPay.id]);
     } else {
       await execute(`
         INSERT INTO payments (
           id, reference_type, reference_id, gateway_order_id, gateway_payment_id,
           gateway_signature, amount, currency, status, payer_email, payer_phone,
           payment_method, idempotency_key, registration_type, created_at,
-          user_reference, verification_method
-        ) VALUES (?, 'stall', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'REVIEW_REQUIRED', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW')
+          user_reference, verification_method, payment_screenshot
+        ) VALUES (?, 'stall', ?, ?, ?, 'CLIENT_CONFIRMED', ?, 'INR', 'Pending upon submission', ?, ?, 'UPI - GPay', ?, ?, ?, ?, 'DIRECT_UPI_REVIEW', ?)
       `, [
         payId,
         bookingId,
@@ -2159,7 +2200,8 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         payId,
         regType,
         now,
-        cleanUtr
+        cleanUtr,
+        screenshot
       ]);
     }
 
@@ -2172,7 +2214,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
         amount: totalAmount,
         utrNumber: cleanUtr,
         category: opt.name,
-        paymentStatus: 'REVIEW_REQUIRED',
+        paymentStatus: 'Pending upon submission',
         registrationType: regType
       })
     );
@@ -2184,7 +2226,7 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       amount: totalAmount,
       utrNumber: cleanUtr,
       registrationType: regType,
-      paymentStatus: 'REVIEW_REQUIRED',
+      paymentStatus: 'Pending upon submission',
       ticketDetails: {
         categoryName: opt.name,
         entityName,
@@ -2717,12 +2759,12 @@ export async function getAllPayments(filter?: {
 
   if (filter?.status) {
     const norm = filter.status.toUpperCase();
-    if (norm === 'REVIEW_REQUIRED' || norm === 'SUBMITTED') {
-      sql += " AND status IN ('REVIEW_REQUIRED', 'submitted')";
+    if (norm === 'REVIEW_REQUIRED' || norm === 'SUBMITTED' || norm.includes('PENDING UPON SUBMISSION')) {
+      sql += " AND status IN ('REVIEW_REQUIRED', 'submitted', 'Pending upon submission', 'pending_upon_submission')";
     } else if (norm === 'PAID' || norm === 'VERIFIED') {
       sql += " AND status IN ('PAID', 'verified', 'successful')";
     } else if (norm === 'PENDING') {
-      sql += " AND status IN ('PENDING', 'pending')";
+      sql += " AND status IN ('PENDING', 'pending', 'Pending upon submission', 'pending_upon_submission', 'REVIEW_REQUIRED', 'submitted')";
     } else if (norm === 'FAILED' || norm === 'REJECTED') {
       sql += " AND status IN ('FAILED', 'rejected', 'failed')";
     } else if (norm === 'REFUNDED') {
@@ -2746,28 +2788,107 @@ export async function getAllPayments(filter?: {
   const events = await getAllEvents();
   const eventMap = new Map(events.map(e => [e.id, e]));
 
-  const regs = await query<{ id: string; event_id: string; participant_count: number }>(
-    'SELECT id, event_id, participant_count FROM event_registrations'
+  const regs = await query<{
+    id: string;
+    event_id: string;
+    participant_count: number;
+    leader_name: string;
+    leader_email: string;
+    leader_phone: string;
+    college_name: string;
+    team_name?: string;
+    payment_screenshot?: string;
+  }>(
+    'SELECT id, event_id, participant_count, leader_name, leader_email, leader_phone, college_name, team_name, payment_screenshot FROM event_registrations'
   );
   const regMap = new Map(regs.map(r => [r.id, r]));
+
+  const stalls = await query<{
+    id: string;
+    entity_name: string;
+    contact_name: string;
+    contact_email: string;
+    contact_phone: string;
+    college_name?: string;
+    payment_screenshot?: string;
+  }>(
+    'SELECT id, entity_name, contact_name, contact_email, contact_phone, college_name, payment_screenshot FROM stall_bookings'
+  );
+  const stallMap = new Map(stalls.map(s => [s.id, s]));
+
+  const allParts = await query<{
+    registration_id: string;
+    full_name: string;
+    roll_number: string;
+    department: string;
+    year_of_study: string;
+    section: string;
+  }>(
+    'SELECT registration_id, full_name, roll_number, department, year_of_study, section FROM participants ORDER BY participant_order ASC'
+  );
+  const partsByReg = new Map<string, Array<{ fullName: string; rollNumber: string; department: string; yearOfStudy: string; section: string; }>>();
+  for (const part of allParts) {
+    if (!partsByReg.has(part.registration_id)) {
+      partsByReg.set(part.registration_id, []);
+    }
+    partsByReg.get(part.registration_id)!.push({
+      fullName: part.full_name,
+      rollNumber: part.roll_number,
+      department: part.department,
+      yearOfStudy: part.year_of_study,
+      section: part.section
+    });
+  }
 
   return payments.map(p => {
     let itemTitle = p.reference_type === 'event' ? 'Competition Registration' : 'Festival Stall';
     let participantCount = 1;
+    let screenshot = p.payment_screenshot || null;
+    let leaderName = null;
+    let leaderEmail = p.payer_email || null;
+    let leaderPhone = p.payer_phone || null;
+    let collegeName = null;
+    let teamName = null;
+    let participantsList: Array<{ fullName: string; rollNumber: string; department: string; yearOfStudy: string; section: string; }> = [];
 
     if (p.reference_type === 'event') {
       const reg = regMap.get(p.reference_id);
       if (reg) {
         participantCount = reg.participant_count;
+        leaderName = reg.leader_name;
+        leaderEmail = reg.leader_email || leaderEmail;
+        leaderPhone = reg.leader_phone || leaderPhone;
+        collegeName = reg.college_name;
+        teamName = reg.team_name || null;
+        if (!screenshot && reg.payment_screenshot) screenshot = reg.payment_screenshot;
         const ev = eventMap.get(reg.event_id);
         if (ev) itemTitle = ev.title;
+        participantsList = partsByReg.get(reg.id) || [];
+      }
+    } else {
+      const stl = stallMap.get(p.reference_id);
+      if (stl) {
+        leaderName = stl.contact_name;
+        leaderEmail = stl.contact_email || leaderEmail;
+        leaderPhone = stl.contact_phone || leaderPhone;
+        collegeName = stl.college_name || null;
+        teamName = stl.entity_name || null;
+        if (!screenshot && stl.payment_screenshot) screenshot = stl.payment_screenshot;
+        itemTitle = `Stall: ${stl.entity_name}`;
       }
     }
 
     return {
       ...p,
       item_title: itemTitle,
-      participant_count: participantCount
+      participant_count: participantCount,
+      payment_screenshot: screenshot,
+      leader_name: leaderName,
+      leader_email: leaderEmail,
+      leader_phone: leaderPhone,
+      college_name: collegeName,
+      team_name: teamName,
+      participants_list: participantsList
     };
   });
 }
@@ -2787,6 +2908,12 @@ export async function verifyPayment(paymentId: string, adminUsername: string, no
     WHERE id = ?
   `, [now, adminUsername, pay.amount, notes || 'Verified by admin against bank records', paymentId]);
 
+  let recipientEmail = pay.payer_email || '';
+  let recipientName = 'Participant';
+  let itemTitle = pay.reference_type === 'event' ? 'Competition Registration' : 'Festival Stall';
+  let collegeName = '';
+  let participantCount = 1;
+
   // Update associated registration
   if (pay.reference_type === 'event') {
     await execute(`
@@ -2794,12 +2921,55 @@ export async function verifyPayment(paymentId: string, adminUsername: string, no
         payment_status = 'PAID', registration_status = 'confirmed', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
+
+    const reg = await queryOne<EventRegistrationRecord>('SELECT * FROM event_registrations WHERE id = ?', [pay.reference_id]);
+    if (reg) {
+      recipientEmail = reg.leader_email || recipientEmail;
+      recipientName = reg.leader_name || recipientName;
+      collegeName = reg.college_name || '';
+      participantCount = reg.participant_count || 1;
+      const ev = await queryOne<{ title: string }>('SELECT title FROM events WHERE id = ?', [reg.event_id]);
+      if (ev) itemTitle = ev.title;
+    }
   } else {
     await execute(`
       UPDATE stall_bookings SET
         payment_status = 'PAID', status = 'approved', updated_at = ?
       WHERE id = ?
     `, [now, pay.reference_id]);
+
+    const stl = await queryOne<StallBookingRecord>('SELECT * FROM stall_bookings WHERE id = ?', [pay.reference_id]);
+    if (stl) {
+      recipientEmail = stl.contact_email || recipientEmail;
+      recipientName = stl.contact_name || recipientName;
+      collegeName = stl.college_name || '';
+      itemTitle = `Festival Stall (${stl.entity_name || 'Exhibitor'})`;
+    }
+  }
+
+  // Trigger confirmation email to participant's registered email address
+  if (recipientEmail) {
+    try {
+      await sendPaymentVerifiedConfirmationEmail({
+        recipientEmail,
+        recipientName,
+        registrationId: pay.reference_id,
+        referenceType: pay.reference_type,
+        itemTitle,
+        amount: Number(pay.amount || 0),
+        utrNumber: pay.gateway_payment_id || pay.user_reference || 'N/A',
+        collegeName,
+        participantCount
+      });
+      await execute(`
+        UPDATE payments SET email_status = 'SENT', email_sent_at = ? WHERE id = ?
+      `, [now, paymentId]);
+    } catch (emailErr) {
+      console.warn('Failed to dispatch payment verified confirmation email:', emailErr);
+      await execute(`
+        UPDATE payments SET email_status = 'FAILED', email_error = ? WHERE id = ?
+      `, [String(emailErr), paymentId]);
+    }
   }
 
   await logAuditEvent(
@@ -2807,7 +2977,7 @@ export async function verifyPayment(paymentId: string, adminUsername: string, no
     'PAYMENT_VERIFIED',
     'PAYMENT',
     paymentId,
-    `Admin manually verified payment of ₹${pay.amount} (Ref: ${pay.reference_id}, UTR: ${pay.gateway_payment_id || pay.user_reference || 'N/A'})${notes ? ' - ' + notes : ''}`
+    `Admin manually verified payment of ₹${pay.amount} (Ref: ${pay.reference_id}, UTR: ${pay.gateway_payment_id || pay.user_reference || 'N/A'}). Confirmation email dispatched to ${recipientEmail}.${notes ? ' - ' + notes : ''}`
   );
 
   return true;

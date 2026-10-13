@@ -440,7 +440,7 @@ export default function AdminRegistrationsPage() {
                             title="Mark payment as verified"
                           >
                             {isActionLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
-                            Verify
+                            Verified / Completed
                           </button>
                         )}
 

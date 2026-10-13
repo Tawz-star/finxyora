@@ -19,7 +19,16 @@ import {
   ExternalLink,
   Shield,
   Layers,
-  Trash2
+  Trash2,
+  Eye,
+  Maximize2,
+  ChevronDown,
+  ChevronUp,
+  User,
+  Mail,
+  Phone,
+  Building,
+  ImageIcon
 } from 'lucide-react';
 import { PaymentRecord, normalizePaymentStatus } from '@/lib/payment-types';
 
@@ -27,13 +36,15 @@ type RegType = 'ALL' | 'REAL' | 'TEST';
 
 const STATUS_STYLES: Record<string, string> = {
   PAID: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  'Verified / Completed': 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   verified: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   successful: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  'Pending upon submission': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   REVIEW_REQUIRED: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   submitted: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   VERIFYING: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
-  PENDING: 'bg-slate-700/50 text-slate-400 border-slate-600',
-  pending: 'bg-slate-700/50 text-slate-400 border-slate-600',
+  PENDING: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  pending: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   FAILED: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
   rejected: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
   failed: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
@@ -64,8 +75,18 @@ export default function AdminPaymentsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [verifyModal, setVerifyModal] = useState<{ id: string; amount: number; utr: string; referenceId: string } | null>(null);
+  const [verifyModal, setVerifyModal] = useState<{
+    id: string;
+    amount: number;
+    utr: string;
+    referenceId: string;
+    leaderEmail?: string;
+    leaderName?: string;
+    screenshot?: string | null;
+  } | null>(null);
   const [verifyNotes, setVerifyNotes] = useState('');
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; title: string; utr?: string } | null>(null);
+  const [expandedParticipants, setExpandedParticipants] = useState<Record<string, boolean>>({});
 
   const fetchPayments = useCallback(() => {
     setLoading(true);
@@ -203,22 +224,120 @@ export default function AdminPaymentsPage() {
         </div>
       )}
 
-      {/* Manual Verification Modal */}
+      {/* Screenshot Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 animate-fadeIn"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="relative max-w-3xl w-full bg-slate-900 border border-sky-500/30 rounded-3xl p-5 shadow-2xl overflow-hidden space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-sky-400" />
+                  {lightboxImage.title}
+                </h3>
+                {lightboxImage.utr && (
+                  <p className="text-xs text-amber-300 font-mono mt-0.5">
+                    UPI Transaction ID: {lightboxImage.utr}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center max-h-[70vh] overflow-auto bg-slate-950 rounded-2xl p-2 border border-slate-800">
+              <img
+                src={lightboxImage.src}
+                alt="Payment screenshot"
+                className="max-h-[65vh] object-contain w-auto rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+              <span>Click outside or the close button to dismiss</span>
+              <a
+                href={lightboxImage.src}
+                download={`payment-screenshot-${lightboxImage.utr || 'proof'}.jpg`}
+                className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500 hover:text-white border border-sky-500/30 font-semibold transition-colors"
+              >
+                Download Screenshot
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Verification Modal (Verified / Completed) */}
       {verifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
             <div className="flex items-center gap-2.5 text-emerald-400">
-              <ShieldCheck className="w-6 h-6" />
-              <h3 className="text-base font-bold text-white">Confirm Bank Receipt</h3>
+              <CheckCircle2 className="w-6 h-6" />
+              <h3 className="text-base font-bold text-white">Mark as Verified / Completed</h3>
             </div>
             
             <p className="text-xs text-slate-300 leading-relaxed">
-              Please verify that <strong className="text-emerald-400 font-mono">₹{Number(verifyModal.amount || 0).toFixed(2)}</strong> with UTR <strong className="text-amber-300 font-mono">{verifyModal.utr || 'N/A'}</strong> has been received in the festival Axis Bank / GPay account (<code className="text-sky-300">s.venkatesanraja@okaxis</code>).
+              Verify receipt of <strong className="text-emerald-400 font-mono">₹{Number(verifyModal.amount || 0).toFixed(2)}</strong> for registration <code className="text-sky-300 font-mono">{verifyModal.referenceId}</code>.
             </p>
 
-            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] space-y-1">
-              <div><span className="text-slate-400">Payment ID:</span> <span className="font-mono text-white">{verifyModal.id}</span></div>
-              <div><span className="text-slate-400">Registration Ref:</span> <span className="font-mono text-sky-300">{verifyModal.referenceId}</span></div>
+            <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Participant / Leader:</span>
+                <span className="font-semibold text-white">{verifyModal.leaderName || 'Participant'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Registered Email:</span>
+                <span className="font-mono text-sky-300">{verifyModal.leaderEmail || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">UPI Transaction ID:</span>
+                <span className="font-mono text-amber-300 font-bold">{verifyModal.utr || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Payment ID:</span>
+                <span className="font-mono text-slate-400">{verifyModal.id}</span>
+              </div>
+            </div>
+
+            {verifyModal.screenshot && (
+              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Attached Payment Screenshot:</span>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxImage({ src: verifyModal.screenshot!, title: `Payment Proof - ${verifyModal.referenceId}`, utr: verifyModal.utr })}
+                    className="text-sky-400 hover:text-sky-300 underline text-[11px] font-semibold"
+                  >
+                    Enlarge &rarr;
+                  </button>
+                </div>
+                <div
+                  className="relative rounded-lg overflow-hidden border border-slate-700/80 max-h-36 flex items-center justify-center bg-slate-950 cursor-pointer"
+                  onClick={() => setLightboxImage({ src: verifyModal.screenshot!, title: `Payment Proof - ${verifyModal.referenceId}`, utr: verifyModal.utr })}
+                >
+                  <img
+                    src={verifyModal.screenshot}
+                    alt="Payment Screenshot Preview"
+                    className="max-h-36 object-contain w-auto rounded"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+              <p>
+                Action: Status will update to <strong className="text-white">Verified / Completed</strong> and an official confirmation email will be automatically dispatched to <strong className="text-white">{verifyModal.leaderEmail || 'the participant'}</strong>.
+              </p>
             </div>
 
             <div>
@@ -229,7 +348,7 @@ export default function AdminPaymentsPage() {
                 type="text"
                 value={verifyNotes}
                 onChange={(e) => setVerifyNotes(e.target.value)}
-                placeholder="e.g. Confirmed in Axis Bank passbook on 11 Oct"
+                placeholder="e.g. Confirmed in Axis Bank passbook"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs text-white"
               />
             </div>
@@ -246,8 +365,8 @@ export default function AdminPaymentsPage() {
                 disabled={actionLoading === verifyModal.id}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-white disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-emerald-500/25"
               >
-                {actionLoading === verifyModal.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                Confirm Payment &amp; Authorize Pass
+                {actionLoading === verifyModal.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Mark Verified / Completed &amp; Send Email
               </button>
             </div>
           </div>
@@ -392,12 +511,13 @@ export default function AdminPaymentsPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 font-semibold text-[11px]">
-                  <th className="px-4 py-3">Payment / UTR</th>
-                  <th className="px-4 py-3">Registration Ref</th>
-                  <th className="px-4 py-3">Event / Item</th>
+                  <th className="px-3 py-3 text-center">Screenshot</th>
+                  <th className="px-4 py-3">Payment &amp; UPI Ref</th>
+                  <th className="px-4 py-3">Participant Details</th>
+                  <th className="px-4 py-3">Registration &amp; Event</th>
                   <th className="px-4 py-3 text-center">Amount</th>
                   <th className="px-4 py-3 text-center">Type</th>
-                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center">Payment Status</th>
                   <th className="px-4 py-3 text-center">Submitted</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -408,30 +528,94 @@ export default function AdminPaymentsPage() {
                   const isVerified = norm === 'PAID';
                   const isReviewRequired = norm === 'REVIEW_REQUIRED';
                   const isTest = p.registration_type === 'TEST';
-                  const statusStyle = STATUS_STYLES[p.status] || STATUS_STYLES[norm] || STATUS_STYLES.PENDING;
+                  const statusStyle = isVerified ? STATUS_STYLES.PAID : STATUS_STYLES['Pending upon submission'];
                   const isActing = actionLoading === p.id;
                   const utr = p.user_reference || p.gateway_payment_id;
 
                   return (
                     <tr key={p.id} className={`text-slate-300 hover:bg-slate-900/30 transition-colors ${isTest ? 'opacity-80' : ''}`}>
-                      <td className="px-4 py-3">
-                        <div className="font-mono font-bold text-sky-400 text-[10px] truncate max-w-[140px]">{p.id}</div>
-                        {utr && (
-                          <div className="text-[10px] text-amber-300 font-mono font-semibold mt-0.5">
-                            UTR: {utr}
+                      {/* 1. Payment Screenshot */}
+                      <td className="px-3 py-3 text-center">
+                        {p.payment_screenshot ? (
+                          <div
+                            onClick={() => setLightboxImage({ src: p.payment_screenshot!, title: `Payment Proof - ${p.reference_id}`, utr: utr || undefined })}
+                            className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-700 hover:border-sky-400 cursor-pointer group bg-slate-950 transition-all shadow-sm mx-auto"
+                            title="Click to view full-size payment screenshot"
+                          >
+                            <img
+                              src={p.payment_screenshot}
+                              alt="Payment Screenshot"
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <Eye className="w-4 h-4 text-white drop-shadow" />
+                            </div>
                           </div>
-                        )}
-                        {p.verified_by && (
-                          <div className="text-[10px] text-slate-500 mt-0.5">
-                            By: {p.verified_by}
-                          </div>
-                        )}
-                        {p.verification_method && (
-                          <span className="text-[9px] text-slate-500 font-mono block">
-                            via {p.verification_method}
+                        ) : (
+                          <span className="px-2 py-1 rounded-md text-[10px] text-slate-500 bg-slate-900 border border-slate-800 inline-block">
+                            No image
                           </span>
                         )}
                       </td>
+
+                      {/* 2. Payment & UPI Reference */}
+                      <td className="px-4 py-3">
+                        <div className="font-mono font-bold text-sky-400 text-[10px] truncate max-w-[140px]">{p.id}</div>
+                        {utr ? (
+                          <div className="text-[11px] text-amber-300 font-mono font-bold mt-0.5">
+                            UPI: {utr}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">No UPI Ref</div>
+                        )}
+                        <span className="text-[10px] text-slate-400 block mt-0.5">{p.payment_method || 'UPI - GPay'}</span>
+                        {p.verified_by && (
+                          <div className="text-[10px] text-emerald-400 mt-0.5">
+                            ✓ Verified by: {p.verified_by}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 3. Participant Details alongside UPI ID */}
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-white text-xs">{p.leader_name || 'Participant'}</div>
+                        {p.college_name && (
+                          <div className="text-[11px] text-slate-400 truncate max-w-[180px]">{p.college_name}</div>
+                        )}
+                        {p.leader_email && (
+                          <div className="text-[10px] text-sky-300 font-mono truncate max-w-[180px]">{p.leader_email}</div>
+                        )}
+                        {p.leader_phone && (
+                          <div className="text-[10px] text-slate-400 font-mono">{p.leader_phone}</div>
+                        )}
+                        {p.team_name && (
+                          <div className="text-[10px] text-indigo-300 font-medium">Team: {p.team_name}</div>
+                        )}
+                        {p.participants_list && p.participants_list.length > 0 && (
+                          <div className="mt-1">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedParticipants(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                              className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                            >
+                              <span>{p.participants_list.length} Members</span>
+                              {expandedParticipants[p.id] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                            {expandedParticipants[p.id] && (
+                              <div className="mt-1.5 p-2 rounded-lg bg-slate-950/80 border border-slate-800 space-y-1 text-[10px] max-w-[220px]">
+                                {p.participants_list.map((m, idx) => (
+                                  <div key={idx} className="text-slate-300 border-b border-slate-900 pb-0.5 last:border-0">
+                                    <span className="text-white font-medium">{idx + 1}. {m.fullName}</span>
+                                    <span className="text-slate-500 ml-1">({m.rollNumber})</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 4. Registration Ref & Item */}
                       <td className="px-4 py-3">
                         <Link
                           href={`/confirmation/${p.reference_id}`}
@@ -441,17 +625,16 @@ export default function AdminPaymentsPage() {
                           <span>{p.reference_id}</span>
                           <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                         </Link>
-                        <span className="text-[10px] text-slate-500 block capitalize">{p.reference_type}</span>
+                        <div className="text-white font-semibold truncate max-w-[130px] mt-0.5">{p.item_title || '—'}</div>
+                        <span className="text-[10px] text-slate-500 capitalize block">{p.reference_type}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="text-white font-semibold truncate max-w-[120px]">{p.item_title || '—'}</div>
-                        {p.participant_count && (
-                          <div className="text-[10px] text-slate-500">{p.participant_count} participant(s)</div>
-                        )}
-                      </td>
+
+                      {/* 5. Amount */}
                       <td className="px-4 py-3 text-center font-mono font-bold text-white">
                         ₹{Number(p.amount || 0).toFixed(2)}
                       </td>
+
+                      {/* 6. Classification Type */}
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 justify-center ${
                           isTest
@@ -462,11 +645,21 @@ export default function AdminPaymentsPage() {
                           {p.registration_type}
                         </span>
                       </td>
+
+                      {/* 7. Status Column */}
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle} inline-flex items-center gap-1`}>
-                          {isReviewRequired && <Clock className="w-2.5 h-2.5" />}
-                          {isVerified && <CheckCircle2 className="w-2.5 h-2.5" />}
-                          {norm.replace('_', ' ')}
+                          {isVerified ? (
+                            <>
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              Verified / Completed
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-2.5 h-2.5" />
+                              Pending upon submission
+                            </>
+                          )}
                         </span>
                         {p.refund_status && p.refund_status !== 'NONE' && (
                           <div className="mt-1">
@@ -512,6 +705,8 @@ export default function AdminPaymentsPage() {
                           </div>
                         )}
                       </td>
+
+                      {/* 8. Submitted Date */}
                       <td className="px-4 py-3 text-center text-[11px] text-slate-400">
                         {formatDate(p.created_at)}
                         {p.verified_at && (
@@ -520,32 +715,37 @@ export default function AdminPaymentsPage() {
                           </div>
                         )}
                       </td>
+
+                      {/* 9. Actions Column */}
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center gap-1.5 justify-end">
-                          {/* Verify */}
-                          {isReviewRequired && (
+                          {/* Clear action button to update payment status to "Verified / Completed" */}
+                          {!isVerified && (
                             <button
                               onClick={() => setVerifyModal({
                                 id: p.id,
                                 amount: Number(p.amount || 0),
                                 utr: utr || '',
-                                referenceId: p.reference_id
+                                referenceId: p.reference_id,
+                                leaderEmail: p.leader_email || p.payer_email || '',
+                                leaderName: p.leader_name || 'Participant',
+                                screenshot: p.payment_screenshot
                               })}
                               disabled={isActing}
-                              className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
-                              title="Verify against bank records"
+                              className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-emerald-500 hover:bg-emerald-400 text-white shadow-md shadow-emerald-500/20 flex items-center gap-1 transition-all disabled:opacity-50"
+                              title="Update payment status to Verified / Completed and dispatch confirmation email to participant"
                             >
-                              <ShieldCheck className="w-3 h-3" />
-                              Verify
+                              <CheckCircle2 className="w-3 h-3" />
+                              Verified / Completed
                             </button>
                           )}
 
                           {/* Reject */}
-                          {isReviewRequired && (
+                          {!isVerified && (
                             <button
                               onClick={() => setRejectModal(p.id)}
                               disabled={isActing}
-                              className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
+                              className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
                               title="Reject this payment claim"
                             >
                               <XCircle className="w-3 h-3" />
@@ -584,7 +784,7 @@ export default function AdminPaymentsPage() {
                             </button>
                           )}
 
-                          {/* Delete Payment Record - Available for all payment records */}
+                          {/* Delete Payment Record */}
                           <button
                             onClick={() => {
                               const msg = `⚠️ Permanently delete payment record "${p.id}" (₹${Number(p.amount || 0).toFixed(2)}) for ${p.reference_id}?\n\nThis will remove it from the payment ledger and immediately deduct it from festival revenue calculations.`;

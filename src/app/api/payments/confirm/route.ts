@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { referenceType, paymentId, registrationId, expectedAmount, utrNumber, timestamp, isTest, eventData, stallData } = body;
+    const { referenceType, paymentId, registrationId, expectedAmount, utrNumber, timestamp, isTest, eventData, stallData, paymentScreenshot } = body;
 
     // Validate inputs
     if (!referenceType || !registrationId || !utrNumber) {
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         registrationId,
         expectedAmount: Number(expectedAmount || 0),
         utrNumber: cleanUtr,
+        paymentScreenshot: paymentScreenshot ? String(paymentScreenshot).trim() : undefined,
         timestamp,
         isTest: Boolean(isTest),
         eventData,
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
         registrationId,
         referenceType,
         utrNumber: cleanUtr,
+        paymentScreenshot: paymentScreenshot ? String(paymentScreenshot).trim() : undefined,
         isTest: Boolean(isTest)
       });
       result = {
