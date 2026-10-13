@@ -610,6 +610,12 @@ async function initAllSchemas(): Promise<void> {
     }
 
     await seedInitialDataPostgres(pool);
+
+    try {
+      await pool.query("UPDATE events SET title = 'NEWSROOM EVENT' WHERE id = 'corporate-walk';");
+    } catch {
+      // Ignored
+    }
   } else {
     // SQLite Tables (Local Fallback)
     const db = getSqliteDb();
@@ -845,6 +851,7 @@ async function initAllSchemas(): Promise<void> {
       db.prepare("INSERT OR IGNORE INTO site_settings (key, value) VALUES ('event_day2_date', 'November 13, 2026')").run();
       db.exec("UPDATE stall_bookings SET applicant_type = 'outsider' WHERE applicant_type IN ('vendor', 'OUTSIDE_VENDOR', 'outsider') OR stall_category = 'OUTSIDE_VENDOR';");
       db.exec("UPDATE events SET min_participants = 1, max_participants = 1 WHERE id = 'best-cfo';");
+      db.exec("UPDATE events SET title = 'NEWSROOM EVENT' WHERE id = 'corporate-walk';");
     } catch {
       // Ignored
     }
@@ -905,15 +912,15 @@ const INITIAL_EVENTS = [
   },
   {
     id: 'corporate-walk',
-    title: 'STOCK WAR',
-    category: 'Stock Market Simulation, Trading Strategy & Financial Analysis',
-    description: 'Enter the trading floor and battle it out in a high-stakes virtual stock market simulation. Teams will analyze live market scenarios, execute timed trades, and manage a dynamic portfolio under real-world constraints — with leaderboards shifting every round.',
+    title: 'NEWSROOM EVENT',
+    category: 'Financial Journalism, Crisis Broadcasting & Media Analysis',
+    description: 'Enter the live newsroom floor under breaking news pressure. Teams will analyze breaking financial developments, conduct live investigative reporting, and manage crisis communications under real-world constraints — with editorial leaderboards shifting every round.',
     rules: JSON.stringify([
       'Teams must consist of exactly 2 participants.',
-      'Round 1: Market Analysis — Interpret financial data, identify trends, and predict stock movements within a time limit.',
-      'Round 2: Live Trading Simulation — Manage a virtual portfolio of ₹1,00,000 across multiple asset classes under volatile market conditions.',
-      'Round 3: Strategy Presentation — Justify your trades and present your portfolio performance to the judging panel.',
-      'Judges will evaluate based on return on investment (ROI), risk management, decision rationale, and analytical depth.'
+      'Round 1: Breaking Financial Story Analysis — Interpret real-time market data, uncover key angles, and pitch headlines within a strict deadline.',
+      'Round 2: Live Crisis Broadcast Simulation — Deliver a breaking news televised broadcast responding to market volatility and corporate fraud revelations.',
+      'Round 3: Press Conference & Editorial Defense — Justify your news coverage and editorial ethics before the senior judging panel.',
+      'Judges will evaluate based on investigative depth, communication poise, fact accuracy, and real-time news judgment.'
     ]),
     min: 2,
     max: 2,

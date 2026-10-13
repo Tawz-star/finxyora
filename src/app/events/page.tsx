@@ -59,7 +59,7 @@ export default async function EventsIndexPage() {
               Dynamic Team Limits
             </h4>
             <p>
-              Participant quotas are strictly validated both client-side and server-side. Prompt Perfect, Best CFO, and B Quiz accept 2 participants; Business Plan and Stock War each require exactly 2 members; Football Auction accepts 2&ndash;3.
+              Participant quotas are strictly validated both client-side and server-side. Prompt Perfect, Best CFO, and B Quiz accept 2 participants; Business Plan and NEWSROOM EVENT each require exactly 2 members; Football Auction accepts 2&ndash;3.
             </p>
           </div>
 

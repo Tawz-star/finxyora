@@ -552,7 +552,7 @@ export default function SingleEventPage() {
 
                     <p className="text-[11px] text-slate-400">
                        {isStockWar
-                        ? 'Stock War requires exactly 2 members per team (₹50/person).'
+                        ? 'NEWSROOM EVENT requires exactly 2 members per team (₹50/person).'
                         : isFootballAuction
                         ? 'Football Auction allows 2 or 3 managers per franchise squad (₹50/person).'
                         : `Select between ${event.min_participants} and ${event.max_participants} members. The registration fee is ₹50 per participant.`}

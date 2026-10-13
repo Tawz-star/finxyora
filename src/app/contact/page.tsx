@@ -278,7 +278,7 @@ export default function ContactPage() {
                       <option value="Finxyora Contact Form Test">Finxyora Contact Form Test</option>
                       <option value="Stall Booking & Facilities">Stall Booking &amp; Facilities</option>
                       <option value="Payment Verification Issue">Payment Verification Issue</option>
-                      <option value="Stock War Accommodation">Stock War Accommodation</option>
+                      <option value="NEWSROOM EVENT Accommodation">NEWSROOM EVENT Accommodation</option>
                       <option value="Sponsorship & Partnership">Sponsorship &amp; Partnership</option>
                       <option value="Other Assistance">Other Assistance</option>
                     </select>

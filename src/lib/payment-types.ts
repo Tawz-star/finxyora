@@ -71,7 +71,7 @@ export function getEventKeyIdentifier(eventId?: string | null): string {
   if (clean === 'best-cfo' || clean.includes('cfo')) return 'CFO';
   if (clean === 'prompt-perfect' || clean.includes('prompt')) return 'PP';
   if (clean === 'best-manager' || clean.includes('business-plan') || clean.includes('plan')) return 'BP';
-  if (clean === 'corporate-walk' || clean.includes('stock-war') || clean.includes('stock')) return 'SW';
+  if (clean === 'corporate-walk' || clean.includes('newsroom') || clean.includes('stock-war') || clean.includes('stock')) return 'NS';
   if (clean === 'b-quiz' || clean.includes('quiz')) return 'BQ';
   if (clean === 'football-auction' || clean.includes('football') || clean.includes('auction')) return 'FA';
   if (clean === 'star-quas') return 'SQ';

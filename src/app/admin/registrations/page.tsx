@@ -257,7 +257,7 @@ export default function AdminRegistrationsPage() {
             <option value="">All Competitions</option>
             <option value="prompt-perfect">Prompt Perfect</option>
             <option value="best-manager">Business Plan</option>
-            <option value="corporate-walk">Stock War</option>
+            <option value="corporate-walk">NEWSROOM EVENT</option>
             <option value="best-cfo">Best CFO</option>
             <option value="b-quiz">B Quiz</option>
             <option value="football-auction">Football Auction</option>

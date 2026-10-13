@@ -82,7 +82,7 @@ export default function Footer() {
               <li>
                 <Link href="/events/corporate-walk" className="hover:text-sky-300 transition-colors flex items-center gap-1">
                   <ArrowRight className="w-3 h-3 text-sky-400" />
-                  Stock War (2 Members)
+                  NEWSROOM EVENT (2 Members)
                 </Link>
               </li>
               <li>

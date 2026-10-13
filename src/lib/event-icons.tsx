@@ -38,7 +38,7 @@ export const EVENT_ICONS: Record<string, EventIconConfig> = {
     color: 'text-emerald-400',
     bgGlow: 'bg-emerald-500/10 group-hover:bg-emerald-500/20',
     borderGlow: 'border-emerald-500/30 group-hover:border-emerald-400/60',
-    label: 'Stock Market Trading & Portfolio War'
+    label: 'Live Financial Journalism & Newsroom Simulation'
   },
   'best-cfo': {
     icon: Landmark,
