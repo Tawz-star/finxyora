@@ -83,7 +83,7 @@ export default async function AboutCommercePage() {
               <div className="p-3 rounded-xl bg-slate-900/60 border border-emerald-500/30 text-xs">
                 <span className="text-[10px] font-bold text-emerald-400 uppercase block">Staff-in-Charge</span>
                 <span className="font-bold text-white block">Mrs. Varsha K</span>
-                <span className="text-[11px] text-slate-400">Asst. Prof, Dept of Commerce</span>
+                <span className="text-[11px] text-slate-400">Department of Commerce /FINXYORA26</span>
               </div>
             </div>
           </div>

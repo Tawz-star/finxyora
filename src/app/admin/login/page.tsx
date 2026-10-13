@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
             FINXYORA Admin Portal
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Commerce Department &bull; FinTech Association Control Center
+            Department of Commerce /FINXYORA26 Control Center
           </p>
         </div>
 

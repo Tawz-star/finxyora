@@ -20,6 +20,7 @@ import {
   ImageIcon,
   Trash2
 } from 'lucide-react';
+import { getEventKeyIdentifier } from '@/lib/payment-types';
 
 export interface EventRegistrationPayload {
   eventId: string;
@@ -175,7 +176,8 @@ export default function PaymentModal({
         console.warn('Server order pre-creation failed, using direct client parameters:', err);
         // Resilient fallback
         const now = Date.now();
-        const fallbackReg = initialReferenceId || (referenceType === 'event' ? `FIN-EVT-${now}` : `FIN-STL-${now}`);
+        const eventCode = getEventKeyIdentifier(eventData?.eventId);
+        const fallbackReg = initialReferenceId || (referenceType === 'event' ? `FIN-2026-${eventCode}-${now.toString().slice(-4)}` : `FIN-STL-${now}`);
         const fallbackPay = `PAY-${fallbackReg}-${now.toString().slice(-6)}`;
         setRegistrationId(fallbackReg);
         setPaymentIntentId(fallbackPay);

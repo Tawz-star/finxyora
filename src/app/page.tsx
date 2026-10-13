@@ -52,7 +52,7 @@ export default async function HomePage() {
           {/* Top Glowing Glassmorphism Pill / Badge */}
           <div className="inline-flex items-center gap-2.5 px-4 sm:px-6 py-2 rounded-full glass-panel border border-sky-400/40 text-sky-200 text-xs sm:text-sm font-semibold shadow-[0_0_24px_rgba(56,189,248,0.22)] hover:border-sky-300 transition-all backdrop-blur-xl">
             <Sparkles className="w-4 h-4 text-sky-400 animate-pulse shrink-0" />
-            <span className="tracking-wide">Commerce Department &bull; FinTech Association Presents</span>
+            <span className="tracking-wide">Department of Commerce /FINXYORA26 Presents</span>
           </div>
 
           {/* Official High-Resolution FINXYORA 2K26 Hero Title / Logo with Spring & Bouncy Animation */}
@@ -173,12 +173,12 @@ export default async function HomePage() {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Participants who win the event will receive official First Prize, Second Prize, or Third Prize honours and merit recognition across every competition arena.
+              Participants who win the event will receive official First Prize or Second Prize honours and merit recognition across every competition arena.
             </p>
           </div>
 
-          {/* Three Balanced Prize Cards: First, Second, and Third Prize */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {/* Two Balanced Prize Cards: First and Second Prize */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             
             {/* FIRST PRIZE */}
             <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-amber-400/40 bg-gradient-to-b from-amber-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-amber-500/10 hover:border-amber-400/70 transition-all flex flex-col justify-between">
@@ -233,34 +233,6 @@ export default async function HomePage() {
                   Runner-Up Citation
                 </span>
                 <span className="font-mono font-bold text-sky-300">Rank #2</span>
-              </div>
-            </div>
-
-            {/* THIRD PRIZE */}
-            <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-orange-400/30 bg-gradient-to-b from-orange-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-orange-500/10 hover:border-orange-400/60 transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <span className="text-3xl sm:text-4xl">🥉</span>
-                  <span className="px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider bg-orange-400/20 text-orange-300 border border-orange-400/40">
-                    2nd Runner-Up
-                  </span>
-                </div>
-                <h3 className="text-2xl font-black text-white tracking-tight">
-                  THIRD PRIZE
-                </h3>
-                <p className="text-xs font-semibold text-orange-300 uppercase tracking-wider mt-1 mb-3">
-                  Second Runner-Up Award
-                </p>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  Awarded to the third-place team or participant in each flagship arena, recognizing exceptional technical execution, strategic acumen, and official podium merit credentials.
-                </p>
-              </div>
-              <div className="pt-5 mt-6 border-t border-orange-500/20 flex items-center justify-between text-xs text-orange-200/80">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                  Podium Distinction
-                </span>
-                <span className="font-mono font-bold text-orange-300">Rank #3</span>
               </div>
             </div>
 
@@ -423,7 +395,7 @@ export default async function HomePage() {
             </div>
 
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Commerce Department &amp; FinTech Association
+              Department of Commerce /FINXYORA26
             </h2>
 
             <p className="text-sm text-slate-300 leading-relaxed">
@@ -431,7 +403,7 @@ export default async function HomePage() {
             </p>
 
             <p className="text-sm text-slate-300 leading-relaxed">
-              The <strong>FinTech Association</strong> represents the cutting-edge technological evolution of our commerce curriculum—bridging traditional banking systems with decentralized ledgers, artificial intelligence, quantitative algorithmic trading, and modern regulatory compliance.
+              The <strong>Department of Commerce /FINXYORA26</strong> represents the cutting-edge technological evolution of our commerce curriculum—bridging traditional banking systems with decentralized ledgers, artificial intelligence, quantitative algorithmic trading, and modern regulatory compliance.
             </p>
 
             <div className="grid grid-cols-2 gap-4 pt-2">
@@ -548,7 +520,7 @@ export default async function HomePage() {
                 </h4>
                 <p className="text-xs font-medium text-emerald-400/90 mt-0.5">Assistant Professor</p>
                 <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  Department of Commerce / FinTech Association
+                  Department of Commerce /FINXYORA26
                 </p>
               </div>
             </div>

@@ -64,3 +64,18 @@ export function normalizePaymentStatus(status?: string | null): PaymentStatus {
   if (s === 'EXPIRED') return 'EXPIRED';
   return 'PENDING';
 }
+
+export function getEventKeyIdentifier(eventId?: string | null): string {
+  if (!eventId) return 'EVT';
+  const clean = eventId.toLowerCase().trim();
+  if (clean === 'best-cfo' || clean.includes('cfo')) return 'CFO';
+  if (clean === 'prompt-perfect' || clean.includes('prompt')) return 'PP';
+  if (clean === 'best-manager' || clean.includes('business-plan') || clean.includes('plan')) return 'BP';
+  if (clean === 'corporate-walk' || clean.includes('stock-war') || clean.includes('stock')) return 'SW';
+  if (clean === 'b-quiz' || clean.includes('quiz')) return 'BQ';
+  if (clean === 'football-auction' || clean.includes('football') || clean.includes('auction')) return 'FA';
+  if (clean === 'star-quas') return 'SQ';
+  const letters = clean.replace(/[^a-z0-9]/g, '').toUpperCase().slice(0, 4);
+  return letters || 'EVT';
+}
+

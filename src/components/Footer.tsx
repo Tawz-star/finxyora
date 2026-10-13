@@ -47,7 +47,7 @@ export default function Footer() {
             </p>
             
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              The flagship intra-collegiate festival organized by the Department of Commerce &amp; FinTech Association. Uniting sharp minds in AI, executive leadership, blockchain, financial strategy, and commercial creativity.
+              The flagship intra-collegiate festival organized by the Department of Commerce /FINXYORA26. Uniting sharp minds in AI, executive leadership, blockchain, financial strategy, and commercial creativity.
             </p>
 
             <div className="flex items-center gap-2 pt-2">
@@ -176,7 +176,7 @@ export default function Footer() {
         {/* Bottom Bar & Policy */}
         <div className="mt-12 pt-8 border-t border-slate-800/80 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <p>
-            &copy; {new Date().getFullYear()} FINXYORA &bull; Department of Commerce &amp; FinTech Association &bull; Bishop Heber College. All rights reserved.
+            &copy; {new Date().getFullYear()} FINXYORA &bull; Department of Commerce /FINXYORA26 &bull; Bishop Heber College. All rights reserved.
           </p>
           <div className="flex items-center gap-4 text-xs">
             <span>Valid College ID Mandatory</span>

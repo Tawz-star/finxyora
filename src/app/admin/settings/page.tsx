@@ -127,7 +127,7 @@ export default function AdminSettingsPage() {
                 type="text"
                 value={settings.college_department || ''}
                 onChange={(e) => handleChange('college_department', e.target.value)}
-                placeholder="Department of Commerce & FinTech Association"
+                placeholder="Department of Commerce /FINXYORA26"
                 className="w-full px-3.5 py-2.5 rounded-xl glass-input text-xs"
               />
             </div>

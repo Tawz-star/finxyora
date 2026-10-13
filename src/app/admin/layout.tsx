@@ -62,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 ADMIN CONSOLE
               </span>
               <span className="hidden sm:inline text-xs text-slate-400">
-                FinTech Association Management Suite
+                Department of Commerce /FINXYORA26 Management Suite
               </span>
             </div>
 

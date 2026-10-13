@@ -5,9 +5,9 @@ import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: 'FINXYORA 2026 | Intra-Collegiate FinTech & Commerce Festival',
-  description: 'FINXYORA is the premier intra-collegiate FinTech festival organized by the Commerce Department and FinTech Association. Join us for 6 flagship events in AI, leadership, corporate presentation, blockchain, and financial strategy.',
+  description: 'FINXYORA is the premier intra-collegiate FinTech festival organized by the Department of Commerce /FINXYORA26. Join us for 6 flagship events in AI, leadership, corporate presentation, blockchain, and financial strategy.',
   keywords: ['FinTech festival', 'FINXYORA', 'Commerce fest', 'Prompt Perfect', 'Business Plan', 'Stock War', 'B Quiz', 'Football Auction', 'intra-collegiate fest'],
-  authors: [{ name: 'Commerce Department — FinTech Association' }],
+  authors: [{ name: 'Department of Commerce /FINXYORA26' }],
   openGraph: {
     title: 'FINXYORA 2026 — Where Finance Meets Innovation',
     description: 'Intra-collegiate technical, management, and cultural festival featuring 6 flagship events and vibrant student & vendor stalls.',

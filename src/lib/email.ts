@@ -466,7 +466,7 @@ Thank you for your understanding.
 
 Regards,
 Finxyora Organizing Team
-FinTech Association
+Department of Commerce /FINXYORA26
 `;
 
   const htmlBody = `
@@ -517,7 +517,7 @@ FinTech Association
       <div style="margin-top: 24px; border-top: 1px solid #1e293b; padding-top: 16px; font-size: 13px; color: #94a3b8;">
         Regards,<br/>
         <strong style="color: #ffffff;">Finxyora Organizing Team</strong><br/>
-        FinTech Association &bull; Bishop Heber College
+        Department of Commerce /FINXYORA26 &bull; Bishop Heber College
       </div>
     </div>
   `;
@@ -587,7 +587,7 @@ For any inquiries, contact our student leadership:
 
 Timestamp: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
 ===========================================
-PG & Research Department of Commerce & FinTech Association
+PG & Research Department of Commerce /FINXYORA26
 Bishop Heber College (Autonomous), Tiruchirappalli
 `;
 
@@ -660,7 +660,7 @@ Bishop Heber College (Autonomous), Tiruchirappalli
       <div style="font-size: 12px; color: #64748b;">
         Regards,<br/>
         <strong style="color: #f1f5f9;">FINXYORA 2026 Organizing Committee</strong><br/>
-        PG &amp; Research Department of Commerce &bull; FinTech Association<br/>
+        PG &amp; Research Department of Commerce /FINXYORA26<br/>
         Bishop Heber College (Autonomous), Tiruchirappalli &bull; 620 017
       </div>
     </div>

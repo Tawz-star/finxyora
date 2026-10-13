@@ -5,6 +5,9 @@ import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import { DIRECT_UPI_CONFIG, buildDynamicUpiUrl, buildQrCodeImageUrl, getPaymentGatewayInfo } from './payment-gateway';
 import { sendRejectionRefundEmail, sendPaymentVerifiedConfirmationEmail } from './email';
+import { getEventKeyIdentifier } from './payment-types';
+
+export { getEventKeyIdentifier };
 
 // =============================================================
 // DATABASE ENGINE CONFIGURATION
@@ -1114,11 +1117,14 @@ function seedInitialDataSqlite(db: DatabaseSync) {
 // ID GENERATORS (REAL vs TEST IDENTIFIERS)
 // =============================================================
 
-async function generateRegistrationId(isTest: boolean): Promise<string> {
-  const prefix = isTest ? 'FIN-TEST' : 'FIN-2026';
+async function generateRegistrationId(isTest: boolean, eventId?: string): Promise<string> {
+  const eventCode = getEventKeyIdentifier(eventId);
+  const prefix = isTest ? `FIN-TEST-${eventCode}` : `FIN-2026-${eventCode}`;
   const row = await queryOne<{ total: string | number }>(
-    'SELECT COUNT(*) as total FROM event_registrations WHERE registration_type = ?',
-    [isTest ? 'TEST' : 'REAL']
+    eventId
+      ? 'SELECT COUNT(*) as total FROM event_registrations WHERE registration_type = ? AND event_id = ?'
+      : 'SELECT COUNT(*) as total FROM event_registrations WHERE registration_type = ?',
+    eventId ? [isTest ? 'TEST' : 'REAL', eventId] : [isTest ? 'TEST' : 'REAL']
   );
   const nextNum = Number(row?.total || 0) + 1;
   const seq = String(nextNum).padStart(4, '0');
@@ -1357,9 +1363,11 @@ export async function createPaymentOrder(params: CreatePaymentOrderParams): Prom
     // MANDATORY BACKEND ENFORCEMENT: ₹50 PER PARTICIPANT
     const calculatedFee = 50 * participantCount;
 
-    const regId = params.registrationId && params.registrationId.startsWith('FIN-')
+    const eventCode = getEventKeyIdentifier(eventId);
+    const hasEventCode = params.registrationId && params.registrationId.includes(`-${eventCode}-`);
+    const regId = params.registrationId && params.registrationId.startsWith('FIN-') && !params.registrationId.startsWith('FIN-EVT-') && hasEventCode
       ? params.registrationId
-      : await generateRegistrationId(isTest);
+      : await generateRegistrationId(isTest, eventId);
 
     const payId = `PAY-${regId}-${Date.now().toString().slice(-6)}`;
     const orderRef = `ORD-${regId}`;
@@ -1945,9 +1953,11 @@ export async function confirmClientSideRegistration(payload: ClientRegistrationP
       throw new Error(`Fee calculation mismatch: expected ₹${calculatedFee} (₹50 × ${participantCount} participants), but received ₹${payload.expectedAmount}.`);
     }
 
-    const regId = payload.registrationId && payload.registrationId.startsWith('FIN-')
+    const eventCode = getEventKeyIdentifier(eventId);
+    const hasEventCode = payload.registrationId && payload.registrationId.includes(`-${eventCode}-`);
+    const regId = payload.registrationId && payload.registrationId.startsWith('FIN-') && !payload.registrationId.startsWith('FIN-EVT-') && hasEventCode
       ? payload.registrationId
-      : await generateRegistrationId(isTest);
+      : await generateRegistrationId(isTest, eventId);
 
     const payId = payload.paymentId || `PAY-${regId}-${Date.now().toString().slice(-6)}`;
     const regStatus = 'registered';
@@ -2269,7 +2279,7 @@ export async function createEventRegistration(data: {
   const participantCount = data.participants.length;
   const calculatedFee = 50 * participantCount;
   const isTest = Boolean(data.isTest);
-  const regId = await generateRegistrationId(isTest);
+  const regId = await generateRegistrationId(isTest, data.eventId);
   const now = new Date().toISOString();
 
   await execute(`

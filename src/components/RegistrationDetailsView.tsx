@@ -441,7 +441,7 @@ export default function RegistrationDetailsView({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-b border-slate-800 pb-8">
           <div>
             <span className="text-[11px] font-mono tracking-widest uppercase text-sky-400 font-bold block mb-1">
-              DEPARTMENT OF COMMERCE &bull; FINTECH ASSOCIATION
+              DEPARTMENT OF COMMERCE /FINXYORA26
             </span>
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
               FINXYORA 2026

@@ -90,7 +90,7 @@ export default function Navbar() {
           {/* Center: Department Pill */}
           <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-[11px] text-sky-300 font-medium">
             <Sparkles className="w-3 h-3 text-sky-400" />
-            <span>Dept. of Commerce &bull; FinTech Association</span>
+            <span>Department of Commerce /FINXYORA26</span>
           </div>
 
           {/* Right: Festival Dates Badge */}
@@ -227,7 +227,7 @@ export default function Navbar() {
             </div>
             <div>
               <p className="text-xs font-bold text-white leading-tight">BISHOP HEBER COLLEGE</p>
-              <p className="text-[10px] text-sky-400 leading-tight">Dept. of Commerce &bull; FinTech Association</p>
+              <p className="text-[10px] text-sky-400 leading-tight">Department of Commerce /FINXYORA26</p>
               <p className="text-[9px] text-slate-400">Nov 12 &amp; 13, 2026 &bull; Golden Jubilee Building</p>
             </div>
           </div>
