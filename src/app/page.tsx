@@ -48,7 +48,7 @@ export default async function HomePage() {
       {/* ============================================================== */}
       <section className="relative pt-12 pb-20 md:pt-20 md:pb-28 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="text-center space-y-6 max-w-4xl mx-auto">
-          
+
           {/* Top Glowing Glassmorphism Pill / Badge */}
           <div className="inline-flex items-center gap-2.5 px-4 sm:px-6 py-2 rounded-full glass-panel border border-sky-400/40 text-sky-200 text-xs sm:text-sm font-semibold shadow-[0_0_24px_rgba(56,189,248,0.22)] hover:border-sky-300 transition-all backdrop-blur-xl">
             <Sparkles className="w-4 h-4 text-sky-400 animate-pulse shrink-0" />
@@ -130,7 +130,7 @@ export default async function HomePage() {
       <section className="py-10 border-y border-sky-500/20 bg-slate-950/60 backdrop-blur-xl">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-center">
-            
+
             <div className="p-6 rounded-2xl glass-card border border-sky-500/20 hover:border-sky-500/40 transition-all">
               <div className="text-3xl sm:text-4xl font-black text-white font-mono">6</div>
               <div className="text-xs font-semibold text-sky-300 uppercase tracking-wider mt-1.5">
@@ -179,7 +179,7 @@ export default async function HomePage() {
 
           {/* Two Balanced Prize Cards: First and Second Prize */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            
+
             {/* FIRST PRIZE */}
             <div className="relative p-6 sm:p-7 rounded-3xl glass-card border border-amber-400/40 bg-gradient-to-b from-amber-500/10 via-slate-900/60 to-slate-950/80 shadow-xl shadow-amber-500/10 hover:border-amber-400/70 transition-all flex flex-col justify-between">
               <div>
@@ -387,7 +387,7 @@ export default async function HomePage() {
       {/* ============================================================== */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-sky-500/20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          
+
           <div className="space-y-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
               <Building className="w-3.5 h-3.5" />
@@ -395,7 +395,7 @@ export default async function HomePage() {
             </div>
 
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Department of Commerce /FINXYORA26
+              Department of Commerce /FINXYORA&apos;26
             </h2>
 
             <p className="text-sm text-slate-300 leading-relaxed">
@@ -403,7 +403,7 @@ export default async function HomePage() {
             </p>
 
             <p className="text-sm text-slate-300 leading-relaxed">
-              The <strong>Department of Commerce /FINXYORA26</strong> represents the cutting-edge technological evolution of our commerce curriculum—bridging traditional banking systems with decentralized ledgers, artificial intelligence, quantitative algorithmic trading, and modern regulatory compliance.
+              The <strong>Department of Commerce /FINXYORA&apos;26</strong> represents the cutting-edge technological evolution of our commerce curriculum—bridging traditional banking systems with decentralized ledgers, artificial intelligence, quantitative algorithmic trading, and modern regulatory compliance.
             </p>
 
             <div className="grid grid-cols-2 gap-4 pt-2">
@@ -520,7 +520,7 @@ export default async function HomePage() {
                 </h4>
                 <p className="text-xs font-medium text-emerald-400/90 mt-0.5">Assistant Professor</p>
                 <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                  Department of Commerce /FINXYORA26
+                  Department of Commerce /FINXYORA&apos;26
                 </p>
               </div>
             </div>

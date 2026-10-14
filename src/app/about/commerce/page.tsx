@@ -11,7 +11,7 @@ export default async function AboutCommercePage() {
 
   return (
     <div className="py-12 md:py-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-16">
-      
+
       {/* Header */}
       <div className="text-center max-w-3xl mx-auto space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass-card border border-sky-400/30 text-sky-300 text-xs sm:text-sm font-medium">
@@ -83,7 +83,7 @@ export default async function AboutCommercePage() {
               <div className="p-3 rounded-xl bg-slate-900/60 border border-emerald-500/30 text-xs">
                 <span className="text-[10px] font-bold text-emerald-400 uppercase block">Staff-in-Charge</span>
                 <span className="font-bold text-white block">Mrs. Varsha K</span>
-                <span className="text-[11px] text-slate-400">Department of Commerce /FINXYORA26</span>
+                <span className="text-[11px] text-slate-400">Department of Commerce /FINXYORA&apos;26</span>
               </div>
             </div>
           </div>
