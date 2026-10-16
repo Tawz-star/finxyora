@@ -51,7 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-[#07152f] pb-20">
       
       {/* Top Admin Sub-Navbar */}
-      <header className="border-b border-sky-500/20 bg-slate-950/80 backdrop-blur-xl sticky top-20 z-40">
+      <header className="border-b border-sky-500/20 bg-slate-950/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             

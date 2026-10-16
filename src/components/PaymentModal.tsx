@@ -107,6 +107,8 @@ export default function PaymentModal({
   const [upiUrl, setUpiUrl] = useState<string>('');
   const [qrImageUrl, setQrImageUrl] = useState<string>('');
   const [utrNumber, setUtrNumber] = useState<string>('');
+  const [senderUpi, setSenderUpi] = useState<string>('');
+  const [showUtrInfo, setShowUtrInfo] = useState<boolean>(false);
   const [step, setStep] = useState<PaymentStep>('loading_order');
   const [processingElapsed, setProcessingElapsed] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -132,6 +134,8 @@ export default function PaymentModal({
     setErrorMessage(null);
     setStatusCheckMessage(null);
     setUtrNumber('');
+    setSenderUpi('');
+    setShowUtrInfo(false);
     setPaymentScreenshot('');
     setScreenshotFileName('');
     setQrLoaded(false);
@@ -281,8 +285,8 @@ export default function PaymentModal({
       setErrorMessage('Please enter the UPI Transaction ID / UTR number from your payment receipt.');
       return;
     }
-    if (cleanUtr.length < 6) {
-      setErrorMessage('UTR must be at least 6 characters (typically a 12-digit bank reference number).');
+    if (cleanUtr.length < 12) {
+      setErrorMessage('UTR must be a 12-digit numeric bank reference number.');
       return;
     }
 
@@ -303,6 +307,7 @@ export default function PaymentModal({
           registrationId,
           expectedAmount: serverAmount,
           utrNumber: cleanUtr,
+          senderUpi: senderUpi.trim(),
           paymentScreenshot,
           timestamp: Date.now(),
           eventData,
@@ -682,23 +687,70 @@ export default function PaymentModal({
               <form onSubmit={handleConfirmPayment} className="space-y-3.5">
                 {/* 1. UPI Transaction ID */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    UPI Transaction ID / UTR <span className="text-rose-400">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="utr-number-input" className="text-xs font-bold text-slate-200">
+                      UPI Transaction ID / UTR <span className="text-rose-400">*</span>
+                    </label>
+                    <div className="relative group inline-block">
+                      <button
+                        type="button"
+                        onClick={() => setShowUtrInfo((prev) => !prev)}
+                        className="text-[11px] text-sky-400 hover:text-sky-300 font-medium inline-flex items-center gap-1 transition-colors cursor-pointer"
+                        aria-label="Where to find UTR number"
+                      >
+                        Where to find this? ⓘ
+                      </button>
+                      <div
+                        className={`absolute right-0 bottom-full mb-1.5 w-64 sm:w-72 p-2.5 rounded-lg bg-slate-900 border border-sky-500/30 text-[11px] text-slate-200 shadow-xl z-30 transition-all pointer-events-none ${
+                          showUtrInfo
+                            ? 'opacity-100 visible'
+                            : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'
+                        }`}
+                      >
+                        <p className="font-semibold text-sky-300 mb-0.5">Where to find this:</p>
+                        <p className="leading-snug text-slate-300">
+                          PhonePe: UTR / Bank Ref | GPay: UPI transaction ID | Paytm: UPI Ref No.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <input
                     ref={utrInputRef}
                     id="utr-number-input"
                     type="text"
                     required
+                    maxLength={12}
+                    inputMode="numeric"
                     value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value)}
+                    onChange={(e) => {
+                      const numericVal = e.target.value.replace(/\D/g, '').slice(0, 12);
+                      setUtrNumber(numericVal);
+                    }}
                     placeholder="e.g. 528394819203 (12-digit UTR)"
                     className="w-full px-4 py-3 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
                     autoComplete="off"
-                    inputMode="text"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
                     Found in your UPI app receipt → &quot;UPI Ref No.&quot; or &quot;UTR&quot; or &quot;Transaction ID&quot;.
+                  </p>
+                </div>
+
+                {/* 2. Sender UPI ID / Remitter Name (Optional) */}
+                <div>
+                  <label htmlFor="sender-upi-input" className="block text-xs font-bold text-slate-200 mb-1">
+                    Sender UPI ID / Remitter Name (Optional)
+                  </label>
+                  <input
+                    id="sender-upi-input"
+                    type="text"
+                    value={senderUpi}
+                    onChange={(e) => setSenderUpi(e.target.value)}
+                    placeholder="e.g. rahul@oksbi or Rahul Sharma"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-white font-mono placeholder:font-sans placeholder:text-slate-600 tracking-wider"
+                    autoComplete="off"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Helps us locate your transaction faster if the UTR contains a typo.
                   </p>
                 </div>
 
@@ -769,6 +821,9 @@ export default function PaymentModal({
                       <p className="text-[10px] text-slate-500 mt-1">
                         PNG, JPG, WebP from GPay / PhonePe / Paytm / Bank App
                       </p>
+                      <p className="text-[10px] text-amber-400 font-medium mt-2 max-w-sm mx-auto leading-relaxed">
+                        ⚠️ Screenshot must clearly show the 12-digit UTR / UPI Ref ID and the amount paid. Cropped receipts showing only &apos;Success&apos; cannot be verified.
+                      </p>
                     </div>
                   )}
 
@@ -782,7 +837,7 @@ export default function PaymentModal({
                 <div className="p-3 rounded-xl bg-sky-950/40 border border-sky-500/20 text-[11px] text-sky-300 flex items-start gap-2">
                   <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-sky-400" />
                   <p>
-                    Your submission status will be set to <strong className="text-amber-300 font-bold">&quot;Pending upon submission&quot;</strong> and verified by festival staff.
+                    Your submission status will show <strong className="text-amber-300 font-bold">&apos;Pending Verification&apos;</strong> until approved by the festival team.
                   </p>
                 </div>
 
@@ -796,7 +851,8 @@ export default function PaymentModal({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 rounded-xl text-sm font-black bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all"
+                    disabled={utrNumber.length < 12 || !paymentScreenshot || isUploadingImage}
+                    className="flex-1 py-3 rounded-xl text-sm font-black bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-500 hover:to-sky-400 text-white shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-sky-500"
                   >
                     <ShieldCheck className="w-5 h-5" />
                     Submit For Verification
