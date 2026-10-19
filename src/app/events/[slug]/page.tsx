@@ -47,6 +47,18 @@ interface EventData {
   deadline?: string;
 }
 
+const OFFICIAL_RULES = [
+  'Registration fee per person is ₹50.',
+  'Multiple Teams from the same department can register.',
+  'No On Spot registration is allowed for any event.',
+  'All participants are requested to register through the website and obtain their unique Registration ID.',
+  'Registration ID is mandatory to participate.',
+  'Participants must bring all the necessary materials needed.',
+  'Participants must adhere to the rules and regulations of the respective event.',
+  'Any Malpractices, Plagiarism and Misconduct will lead to direct disqualification.',
+  'The decision of Judges and the Organizing committee shall be final and binding.',
+];
+
 export default function SingleEventPage() {
   const params = useParams();
   const router = useRouter();
@@ -283,13 +295,6 @@ export default function SingleEventPage() {
     );
   }
 
-  const parsedRules: string[] = (() => {
-    try {
-      return JSON.parse(event.rules);
-    } catch {
-      return [event.rules];
-    }
-  })();
 
   const isSolo = event.max_participants === 1;
   const isStockWar = event.id === 'corporate-walk';
@@ -410,7 +415,7 @@ export default function SingleEventPage() {
             </h3>
 
             <ul className="space-y-3">
-              {parsedRules.map((rule, idx) => (
+              {OFFICIAL_RULES.map((rule, idx) => (
                 <li key={idx} className="flex items-start gap-2.5 text-xs text-slate-300 leading-relaxed">
                   <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
                   <span>{rule}</span>
